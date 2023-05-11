@@ -47,12 +47,20 @@ class Redactor extends Module
 
         parent::__construct();
 
+        $this->admin_tab[] = array('classname' => 'AdminRedactorDescripciones', 'parent' => 'AdminCatalog', 'displayname' => 'Redactor Descripciones');
+
         $this->displayName = $this->l('Redactor');
         $this->description = $this->l('Generar descripciones mediante la API de redacta.me');
 
         $this->confirmUninstall = $this->l('¿Me vas a desinstalar?');
 
-        $this->ps_versions_compliancy = array('min' => '1.6', 'max' => '1.6');
+        $this->ps_versions_compliancy = array('min' => '1.6', 'max' => '1.7');
+
+        ini_set('error_log', '/var/www/vhost/lafrikileria.com/home/html/test/modules/redactor/log/error.log');
+
+        // Turn on error reporting
+        ini_set('display_errors', 1);
+        error_reporting(E_ALL); 
     }
 
     /**
@@ -63,6 +71,11 @@ class Redactor extends Module
     {
         Configuration::updateValue('REDACTOR_LIVE_MODE', false);
 
+        //añadimos link en pestaña de productos llamando a installTab
+        foreach ($this->admin_tab as $tab) {
+            $this->installTab($tab['classname'], $tab['parent'], $this->name, $tab['displayname']);
+        }
+
         return parent::install() &&
             $this->registerHook('header') &&
             $this->registerHook('displayBackOfficeHeader');
@@ -72,7 +85,56 @@ class Redactor extends Module
     {
         Configuration::deleteByName('REDACTOR_LIVE_MODE');
 
+        //desinstalar el link de la pestaña productos llamando a unistallTab
+        foreach ($this->admin_tab as $tab) {
+            $this->unInstallTab($tab['classname']);
+        }            
+
         return parent::uninstall();
+    }
+
+    /*
+     * Crear el link en pestañas
+     */    
+    protected function installTab($classname = false, $parent = false, $module = false, $displayname = false) {
+        if (!$classname)
+            return true;
+
+        $tab = new Tab();
+        $tab->class_name = $classname;
+        if ($parent)
+            if (!is_int($parent))
+                $tab->id_parent = (int) Tab::getIdFromClassName($parent);
+            else
+                $tab->id_parent = (int) $parent;
+        if (!$module)
+            $module = $this->name;
+        $tab->module = $module;
+        $tab->active = true;
+        if (!$displayname)
+            $displayname = $this->displayName;
+        $tab->name[(int) (Configuration::get('PS_LANG_DEFAULT'))] = $displayname;
+
+        if (!$tab->add())
+            return false;
+
+        return true;
+    }
+
+    /*
+     * Quitar el link en pestañas
+     */
+    protected function unInstallTab($classname = false) {
+        if (!$classname)
+            return true;
+
+        $idTab = Tab::getIdFromClassName($classname);
+        if ($idTab) {
+            $tab = new Tab($idTab);
+            return $tab->delete();
+            ;
+        }
+        return true;
     }
 
     /**
