@@ -353,12 +353,14 @@ class AdminRedactorDescripcionesController extends ModuleAdminController {
         ELSE 0
         END AS redactado,
         IFNULL(red.revisado, 0) AS revisado,
+        IFNULL(CONCAT( '$url_base', ima.id_image, '-home_default/', pla.link_rewrite, '.jpg'), CONCAT('$url_base', 'img/logo_producto_medium_default.jpg')) AS url_imagen,
         CONCAT( '$url_product_back', pro.id_product) AS url_producto
         FROM lafrips_product pro
         JOIN lafrips_product_lang pla ON pro.id_product = pla.id_product AND pla.id_lang = 1
         LEFT JOIN lafrips_supplier sup ON sup.id_supplier = pro.id_supplier
         LEFT JOIN lafrips_manufacturer man ON man.id_manufacturer = pro.id_manufacturer
         LEFT JOIN lafrips_redactor_descripcion red ON red.id_product = pro.id_product
+        LEFT JOIN lafrips_image ima ON ima.id_product = pro.id_product AND ima.cover = 1   
         WHERE 1
         $where_id_product
         $where_referencia
@@ -375,15 +377,15 @@ class AdminRedactorDescripcionesController extends ModuleAdminController {
         // die(Tools::jsonEncode(array('error'=> true, 'message'=>$sql_productos)));
 
         if ($productos = Db::getInstance()->executeS($sql_productos)) {
-            foreach ($productos AS &$producto) {  
-                //sacamos imagen de producto
-                $product = new Product((int)$producto['id_product'], false, 1, 1);
-                $image = Image::getCover((int)$producto['id_product']);			
-                $image_link = new Link;//because getImageLInk is not static function
-                $image_path = $image_link->getImageLink($product->link_rewrite, $image['id_image'], 'home_default');
+            // foreach ($productos AS &$producto) {  
+            //     //sacamos imagen de producto
+            //     $product = new Product((int)$producto['id_product'], false, 1, 1);
+            //     $image = Image::getCover((int)$producto['id_product']);			
+            //     $image_link = new Link;//because getImageLInk is not static function
+            //     $image_path = $image_link->getImageLink($product->link_rewrite, $image['id_image'], 'home_default');
 
-                $producto['image_path'] = $image_path;
-            }
+            //     $producto['image_path'] = $image_path;
+            // }
 
             die(Tools::jsonEncode(array('message'=>'Lista de productos obtenida correctamente', 'info_productos' => $productos, 'total_productos' => $total_productos, 'pagina_actual' => $pagina_actual)));
 
@@ -507,5 +509,94 @@ class AdminRedactorDescripcionesController extends ModuleAdminController {
           
     }
 
+    //función que recibe un id_product y devuelve toda la información concerniente a las descripciones, además de foto, referencia etc, para mostrar en el recuadro lateral de la tabla. 
+    //Tendrá un input descripción que contendrá la descripción actual del producto. Otro input que contendrá la info que se va a pasar por defecto a la API de redacta.me. Esta info será el contenido de la descripción si el producto no figura como redactado = 1, ya que si ha sido redactado, la descripción será o bien la que devolvió la api o algo similar. Si es así, en el input se pondrá el contenido que se utilizó para que la API generara la descripción y que estará guardado en api_json en la tabla redactor_descripcion. Si no ha sido redactado, es posible que el producto ya tenga una descripción completa, en cuyo caso mostraremos un mensaje de aviso o algo así, si esta tiene más de 500 caracteres que es el máximo que se puede pasar a la api.
+    public function ajaxProcessMostrarProducto() {
+        $id_product = Tools::getValue('id_product',0);               
+
+        if (empty($id_product)) {
+            die(Tools::jsonEncode(array('error'=> true, 'message'=>'Error mostrando datos de producto')));
+        }
+
+        //obtenemos el token de AdminCatalog para crear el enlace al producto en backoffice
+        $id_employee = Context::getContext()->employee->id;
+        $tab = 'AdminProducts';
+        $token_adminproducts = Tools::getAdminToken($tab . (int) Tab::getIdFromClassName($tab) . (int) $id_employee);
+        
+        $url_base = Tools::getHttpHost(true).__PS_BASE_URI__;
+        // index.php?controller=AdminProducts&id_product=45631&updateproduct&token=1f1d270097f1d42ecc5dd1c6600dc3ac
+        $url_product_back = $url_base.'lfadminia/index.php?controller=AdminProducts&updateproduct&token='.$token_adminproducts.'&id_product=';  
+
+        $sql_producto = "SELECT pro.id_product AS id_product, pro.reference AS reference, pla.name AS name, pro.id_supplier AS id_supplier, sup.name AS supplier,
+        pro.id_manufacturer AS id_manufacturer, man.name AS manufacturer, 
+        pla.description_short AS descripcion, CHAR_LENGTH(pla.description_short) AS longitud_descripcion,
+        CASE
+        WHEN pla.link_rewrite LIKE '%_kidscrd' OR pla.link_rewrite LIKE '%-noindxr' THEN 0
+        ELSE 1
+        END AS indexado,
+        DATE_FORMAT(pro.date_add,'%d-%m-%Y %H:%i:%S') AS date_creado,
+        IFNULL(red.redactado, 0) AS redactado, 
+        IFNULL(red.en_cola, 0) AS en_cola, 
+        IFNULL(red.revisado, 0) AS revisado, 
+        IFNULL(red.procesando, 0) AS procesando,
+        IFNULL(DATE_FORMAT(red.inicio_proceso,'%d-%m-%Y %H:%i:%S'), 'No disponible') AS date_inicio_proceso, 
+		IFNULL(DATE_FORMAT(red.date_metido_cola,'%d-%m-%Y %H:%i:%S'), 'No disponible') AS date_metido_cola, 
+        IFNULL(DATE_FORMAT(red.date_redactado,'%d-%m-%Y %H:%i:%S'), 'No disponible') AS date_redactado, 
+        IFNULL(DATE_FORMAT(red.date_revisado,'%d-%m-%Y %H:%i:%S'), 'No disponible') AS date_revisado, 
+        IFNULL((SELECT CONCAT(firstname,' ',lastname) FROM lafrips_employee WHERE id_employee = red.id_employee_metido_cola), 'No disponible') AS employee_metido_cola, 
+        IFNULL((SELECT CONCAT(firstname,' ',lastname) FROM lafrips_employee WHERE id_employee = red.id_employee_redactado), 'No disponible') AS employee_redactado, 
+        IFNULL((SELECT CONCAT(firstname,' ',lastname) FROM lafrips_employee WHERE id_employee = red.id_employee_revisado), 'No disponible') AS employee_revisado,   
+        red.api_json AS api_json,        
+        IFNULL(CONCAT( '$url_base', ima.id_image, '-home_default/', pla.link_rewrite, '.jpg'), CONCAT('$url_base', 'img/logo_producto_medium_default.jpg')) AS url_imagen,
+        CONCAT( '$url_product_back', pro.id_product) AS url_producto
+        FROM lafrips_product pro
+        JOIN lafrips_product_lang pla ON pro.id_product = pla.id_product AND pla.id_lang = 1
+        LEFT JOIN lafrips_image ima ON ima.id_product = pro.id_product AND ima.cover = 1   
+        LEFT JOIN lafrips_supplier sup ON sup.id_supplier = pro.id_supplier
+        LEFT JOIN lafrips_manufacturer man ON man.id_manufacturer = pro.id_manufacturer
+        LEFT JOIN lafrips_redactor_descripcion red ON red.id_product = pro.id_product        
+        WHERE pro.id_product = $id_product";
+
+        // die(Tools::jsonEncode(array('error'=> true, 'message'=>$sql_productos)));
+
+        if ($producto = Db::getInstance()->getRow($sql_producto)) {
+            //comprobamos si hay datos en api_json para mostrar en front la info que se pasó a la api en un proceso previo almacenado
+            if ($producto['api_json']) {
+                $producto['info_api'] = json_decode($producto['api_json']);
+            } else {
+                $producto['info_api'] = 0;
+            }
+
+            die(Tools::jsonEncode(array(
+                'message'=>'Información de producto',                     
+                'info_producto' => $producto,                
+            )));
+
+        } else {
+            die(Tools::jsonEncode(array(
+                'error'=> true, 
+                'message'=>'Error obteniendo la información detallada del producto'
+            )));
+        }
+    }
+
+    //función que recibe un id_product y una descripción y actualiza la description_short del producto para id_lang 1. También marcará Revisado a 1, En cola a 0, etc
+    public function ajaxProcessRevisarDescripcion() {
+        $id_product = Tools::getValue('id_product',0);  
+        $nombre = Tools::getValue('nombre',0);  
+        $descripcion = Tools::getValue('descripcion',0);               
+
+        if (empty($id_product) || empty($nombre) || empty($descripcion)) {
+            die(Tools::jsonEncode(array('error'=> true, 'message'=>'Error con la información del producto a revisar')));
+        }
+
+
+
+
+        die(Tools::jsonEncode(array(
+            'message'=>'Producto marcado como revisado, descripción y nombre actualizados',                     
+                            
+        )));
+    }
 
 }

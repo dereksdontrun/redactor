@@ -52,12 +52,12 @@ function start() {
     const panel_fieldset_0 = document.querySelector('div#fieldset_0'); 
     panel_fieldset_0.classList.add('clearfix');    
 
-    //vamos a añadir un panel lateral para visualizar la descripción de un producto concreto, llamado div_descripciones, lo creamos y ponemos adjunto antes que la tabla, de modo que se desplaza a la derecha al poner el panel de tabla
+    //vamos a añadir un panel lateral para visualizar la descripción de un producto concreto, llamado div_productos, lo creamos y ponemos adjunto antes que la tabla, de modo que se desplaza a la derecha al poner el panel de tabla
     //div para mostrar las descripciones
-    const div_descripciones = document.createElement('div');
-    div_descripciones.classList.add('clearfix','col-lg-4');
-    div_descripciones.id = 'div_descripciones';
-    document.querySelector('div.panel-heading').insertAdjacentElement('afterend', div_descripciones);
+    const div_productos = document.createElement('div');
+    div_productos.classList.add('clearfix','col-lg-4');
+    div_productos.id = 'div_productos';
+    document.querySelector('div.panel-heading').insertAdjacentElement('afterend', div_productos);
 
     //generamos la tabla "vacia" para los productos resultados de las consultas
     //utilizamos el mismo formato de prestashop para mostrar los productos, con tabla responsiva etc.
@@ -86,7 +86,10 @@ function start() {
                     <a id="orden_id_product_abajo" class="filtro_orden orden_activo"><i class="icon-caret-down"></i></a>
                     <a id="orden_id_product_arriba" class="filtro_orden"><i class="icon-caret-up"></i></a>
                 </span>
-            </th>    
+            </th>   
+            <th class="center">
+				<span class="title_box">Imagen</span>
+			</th> 
             <th class="fixed-width-md text-center">
                 <span class="title_box">Referencia
                 </span>
@@ -125,7 +128,8 @@ function start() {
         </tr>
         <tr class="nodrag nodrop filter row_hover">
             <th class="text-center">--</th>
-            <th class="text-center"><input type="text" class="filter" id="filtro_id_product" value=""></th> 
+            <th class="text-center"><input type="text" class="filter" id="filtro_id_product" value=""></th>
+            <th class="text-center">--</th> 
             <th class="text-center"><input type="text" class="filter" id="filtro_referencia" value=""></th>
             <th class="text-center"><input type="text" class="filter" id="filtro_nombre" value=""></th>
             <th class="text-center">
@@ -224,7 +228,7 @@ function start() {
     //añadimos un botón en el panel heading, llevado a la izquierda, para Añadir a cola los productos seleccionados.
     var boton_cola = `        
         <div class="btn-group pull-left">
-            <button type="button" name="meter_cola"  id="meter_cola" class="btn btn-success" title="Añadir a cola los productos seleccionados" disabled>
+            <button type="button" name="meter_cola_varios"  id="meter_cola_varios" class="btn btn-success" title="Añadir a cola los productos seleccionados" disabled>
                 <i class="icon-folder"></i>
                 Añadir a cola
             </button>                  
@@ -252,7 +256,7 @@ function start() {
                 }                
             });
             //se hace botón enable
-            document.querySelector('#meter_cola').disabled = false;
+            document.querySelector('#meter_cola_varios').disabled = false;
         } else {
             // console.log("Checkbox is not checked..");
             //se desmarcan todos los checks de producto
@@ -260,7 +264,7 @@ function start() {
                 item.checked = false;
             });
             //se hace botón disabled
-            document.querySelector('#meter_cola').disabled = true;
+            document.querySelector('#meter_cola_varios').disabled = true;
         }
     });
 
@@ -358,11 +362,11 @@ function start() {
     boton_scroll.addEventListener('click', scrollArriba);
 
     //lo append al panel, y con css lo haremos fixed
-    div_descripciones.appendChild(boton_scroll);
+    div_productos.appendChild(boton_scroll);
 
     //eventlistener para botón de Añadir a cola AQUÍ NO FUNCIONA ¿?
-    // const boton_meter_cola_bulk = document.querySelector('#meter_cola');
-    // boton_meter_cola_bulk.addEventListener('click', meterColaBulk);
+    // const boton_meter_cola_varios_bulk = document.querySelector('#meter_cola_varios');
+    // boton_meter_cola_varios_bulk.addEventListener('click', meterColaBulk);
 
     //finalmente,trás cargar la tabla vacía, filtros etc, obtenemos los productos para mostrarlos al cargar la página inicialmente
     obtenerProductos();
@@ -487,8 +491,8 @@ function buscarOrdenado(e) {
 function obtenerProductos(id_product = "", referencia = "", nombre = "", proveedor = 0, fabricante = 0, indexado = 2, redactado = 0, revisado = 0, fecha_desde = "", fecha_hasta = "", orden = "", limite_productos = 20, numero_pagina = 1, paginacion = "") {
     console.log(arguments);
     //ante cualquier búsqueda, si hay algo en el panel lateral limpiamos    
-    if (document.contains(document.querySelector('#div_descripciones'))) {
-        document.querySelector('#div_descripciones').remove();
+    if (document.contains(document.querySelector('#div_producto'))) {
+        document.querySelector('#div_producto').remove();
     } 
     
     //mostramos spinner
@@ -531,7 +535,7 @@ function obtenerProductos(id_product = "", referencia = "", nombre = "", proveed
                 
                 //nos aseguramos de que el check de todos productos no esté checado y el botón de añadir a cola este disabled
                 document.querySelector("#selecciona_todos_productos").checked = false;
-                document.querySelector('#meter_cola').disabled = true;
+                document.querySelector('#meter_cola_varios').disabled = true;
 
                 //con los datos, llamamos a la función que nos los mostrará
                 muestraListaProductos(data.info_productos, data.total_productos, data.pagina_actual); 
@@ -549,7 +553,7 @@ function obtenerProductos(id_product = "", referencia = "", nombre = "", proveed
 
                 //nos aseguramos de que el check de todos productos no esté checado y el botón de añadir a cola esté disbled
                 document.querySelector("#selecciona_todos_productos").checked = false;
-                document.querySelector('#meter_cola').disabled = true;
+                document.querySelector('#meter_cola_varios').disabled = true;
 
                 //hacemos que las flechas de paginación no se puedan pulsar
                 document.querySelectorAll('.flechas_paginacion').forEach( item => {
@@ -658,6 +662,9 @@ function muestraListaProductos(productos, total_productos, pagina_actual) {
                 <td class="fixed-width-sm center">
                     ${producto.id_product} 
                 </td>
+                <td class="center">
+                    <img src="${producto.url_imagen}" alt="" class="imgm img-thumbnail"  width="43" height="45"> 
+				</td>
                 <td class="fixed-width-md center">
                     ${producto.reference}
                 </td>
@@ -825,16 +832,16 @@ function muestraListaProductos(productos, total_productos, pagina_actual) {
                 });
 
                 if (marcado == 1) {
-                    document.querySelector('#meter_cola').disabled = false;
+                    document.querySelector('#meter_cola_varios').disabled = false;
                 } else {
-                    document.querySelector('#meter_cola').disabled = true;
+                    document.querySelector('#meter_cola_varios').disabled = true;
                 }
             }
         ); 
     });
 
     //añadimos eventlistenr al botón general de meter en cola aquí, ya que si lo ponemos al generar la cabecera y el botón no funciona.
-    document.querySelector('#meter_cola').addEventListener('click', meterColaBulk);
+    document.querySelector('#meter_cola_varios').addEventListener('click', meterColaBulk);
 } 
 
 //función llamada cuando se pulsa el botón de Añadir a cola para varios productos. Recogerá los checks marcados para identificar los productos y enviará su id_product a la función masColaProducto() como argumento
@@ -888,6 +895,12 @@ function masColaProducto(array_ids) {
                             <i class="icon-minus"></i> Cola
                         </button> 
                     `;
+
+                    //añadimos eventlistener al nuevo botón
+                    document.querySelector("#menos_cola_"+id_product).addEventListener('click', function() {
+                        //enviamos name, que es el id_product, de momento no como array, a menosColaProducto
+                        menosColaProducto(id_product); 
+                    });  
 
                     document.querySelector("#redactado_"+id_product).innerHTML = `
                         <span class="badge badge-warning">En cola</span>
@@ -957,6 +970,12 @@ function menosColaProducto(id_product) {
                     </button>
                 `;
 
+                //añadimos eventlistener a botón
+                document.querySelector("#mas_cola_"+data.id_producto_cola).addEventListener('click', function() {
+                    //enviamos name, que es el id_product, dentro de un array, a masColaProducto
+                    masColaProducto(new Array(data.id_producto_cola)); 
+                }); 
+
                 //si el producto ya está redactado mostramos success y si no info con if else ternario
                 document.querySelector("#redactado_"+data.id_producto_cola).innerHTML = 
                 data.redactado == 1 ? 
@@ -990,8 +1009,398 @@ function menosColaProducto(id_product) {
 
 function procesarProducto(e) {
     console.log('procesar producto '+e.currentTarget.id);
+
+    //primero limpiamos el div id div_producto por si hay algo, no div_productos
+    if (document.contains(document.querySelector('#div_producto'))) {
+        document.querySelector('#div_producto').remove();
+    } 
+
+    //usamos currentTarget en lugar de target, ya que si se pulsa sobre el icono del botón lo interpreta como target, no teniendo la clase que buscamos, ni el id, etc. Con currentTarget, se va hacia arriba buscando el disparador del event listener
+    if(e.currentTarget && e.currentTarget.classList.contains('procesa_producto')){                    
+        //para sacar el id del producto, cogemos el id del botón pulsado y separamos por _        
+        var botonId = e.currentTarget.id;
+        var splitBotonId = botonId.split('_');
+        var id_product = splitBotonId[splitBotonId.length - 1];     
+        
+        console.log(id_product);       
+        
+        //mostramos spinner
+        spinnerOn();
+
+        var dataObj = {};
+        dataObj['id_product'] = id_product;
+        //el token lo hemos sacado arriba del input hidden
+        $.ajax({
+            url: 'index.php?controller=AdminRedactorDescripciones' + '&token=' + token + "&action=mostrar_producto" + '&ajax=1' + '&rand=' + new Date().getTime(),
+            type: 'POST',
+            data: dataObj,
+            cache: false,
+            dataType: 'json',
+            success: function (data, textStatus, jqXHR)
+            
+            {
+                if (typeof data.error === 'undefined')
+                {                                 
+                    console.dir(data.info_producto);     
+                    
+                    muestraProducto(data.info_producto);  
+                    
+                            
+
+                    //eliminamos spinner
+                    spinnerOff();
+
+                }
+                else
+                {                    
+                    //eliminamos spinner
+                    spinnerOff();
+
+                    showErrorMessage(data.message);
+                }
+
+            },
+            error: function (jqXHR, textStatus, errorThrown)
+            {
+                showErrorMessage('ERRORS: ' + textStatus);
+            }
+        });  //fin ajax
+    }
 }
 
+
+function muestraProducto(producto) {
+    // console.log(info);
+
+    const div_producto = document.createElement('div');
+    div_producto.classList.add('clearfix','panel_sticky');
+    div_producto.id = 'div_producto';
+    document.querySelector('div#div_productos').appendChild(div_producto);
+
+    //tenemos que mostrar un row con info del producto, foto, referencia, etc. Si ha sido redactado antes, revisado, si está en cola o procesando, con avisos. Después un input con la info pasada a la API sacada de api_json si ya fue redactado, o con la descripción del producto, que sería lo que enviaremos a la API. Si la descripción tiene más de 500 caracteres se avisa. Mostramos también la descripción actual en otro input, esta coincidirá con el anterior input si el producto no ha sido redactado. Habrá un select para seleccionar el "tono" a asignar a la api (persuasive, etc) por defecto ¿?
+    //se puede guardar la descripción si se modifica, ya que esta pantalla sirve para pedir una nueva descripción o para revisarla, marcando botón de revisado.
+
+    if (producto.indexado) {
+        var indexado = "SI";
+    } else {
+        var indexado = "NO";
+    }
+
+    var esta_procesando = "";
+    var disable_procesando = "";
+    var mensaje_procesando = "";
+    if (producto.procesando == 1) {
+        esta_procesando = `
+        <span id="procesando_badge" class="badge badge-danger" title="Este producto está siendo procesado, los botones están deshabilitados. Espera y recarga para continuar">Atención - Procesando</span> ${producto.date_inicio_proceso}<br>        
+        `;
+        //si el producto está procesandose deshabilitamos los botones
+        disable_procesando = " disabled";
+        mensaje_procesando = `
+          <span class="badge badge-danger" title="Este producto está siendo procesado, los botones están deshabilitados. Espera y recarga para continuar">Atención - Procesando</span>
+        `;
+    }
+
+    var esta_encola = "";
+    if (producto.en_cola == 1) {
+        esta_encola = `
+        <span id="en_cola_badge" class="badge badge-warning" title="Este producto está en la cola en espera de ser procesado">En Cola</span> 
+        ${producto.employee_metido_cola} - ${producto.date_metido_cola}<br>
+        `;
+    }
+
+    var esta_redactado = "";
+    if ((producto.redactado == 1) && (producto.revisado == 1)) {
+        esta_redactado = `
+        <span id="redactado_badge" class="badge badge-success" title="Este producto ya ha sido redactado y revisado">Redactado</span>
+        ${producto.employee_redactado} - ${producto.date_redactado}<br>
+        `;
+    } else if ((producto.redactado == 1) && (producto.revisado == 0)) {
+        esta_redactado = `
+        <span id="redactado_badge" class="badge badge-info" title="Este producto ya ha sido redactado">Redactado</span>
+        ${producto.employee_redactado} - ${producto.date_redactado}<br>
+        `;
+    }
+
+    var esta_revisado = "";
+    if ((producto.redactado == 1) && (producto.revisado == 1)) {
+        esta_revisado = `
+        <span id="revisado_badge" class="badge badge-success" title="Este producto ya ha sido revisado">Revisado</span>
+        ${producto.employee_revisado} - ${producto.date_revisado}<br>
+        `;
+    } else if ((producto.redactado == 1) && (producto.revisado == 0)) {
+        esta_revisado = `<span id="revisado_badge" class="badge badge-warning" title="Este producto aún no ha sido revisado">No Revisado</span><br>`;
+    } else {
+        esta_revisado = "";
+    } 
+
+    var panel_info_procesos = "";
+    if (esta_procesando != "" || esta_encola != "" || esta_redactado != "" || esta_revisado != "") {
+        panel_info_procesos = `
+        <div class="panel panel_producto panel_info_procesos">
+            ${esta_procesando}
+            ${esta_encola}
+            ${esta_redactado}
+            ${esta_revisado}
+        </div>
+        `;
+    }
+     
+
+    var info_producto = `
+    <div class="panel clearfix panel_producto">
+        <div class="col-lg-3">
+            <img src="${producto.url_imagen}" alt="${producto.name}"  height="200px" width="150px"  title="${producto.name}">
+        </div>
+        <div class="col-lg-1">
+        </div>
+        <div class="col-lg-8">
+            ID: <b>${producto.id_product}</b><br>
+            Referencia: <b>${producto.reference}</b><br> 
+            Proveedor: <b>${producto.supplier}</b><br> 
+            Fabricante: <b>${producto.manufacturer}</b><br>  
+            Indexado: <b>${indexado}</b><br>  
+            Creado: <b>${producto.date_creado}</b><br><br>
+            <div id="info_procesos">
+                ${panel_info_procesos}
+            </div>
+        </div>
+    </div>
+    `;
+
+    //si se hizo petición anterior, tenemos en producto.info_api lo que se envió en descripción en forma de objeto
+    if (producto.info_api) {
+        var descripcion_api = producto.info_api.parameters.Description;
+    } else {
+        //si no tenemos nada ponemos la description_short
+        var descripcion_api = producto.descripcion;
+    }
+
+    //la API de redacta.me necesita un nombre, hasta 50 char, una descripción, hasta 500char, palabras clave, que no usamos pero pongo input y el tono, opcional también, que usamos por defecto Profesional ponemos select, aunque cuando se haga mediante lista se usará el por defecto.
+    var api_descripcion = `
+    <div class="panel clearfix panel_producto">
+        <h3>INFO API y descripción${mensaje_procesando}</h3>
+        <div class="row info_api">
+            <div class="row row_api">
+                <label for="input_nombre_api" class="control-label col-sm-2 col-form-label col-form-label-sm">
+                    <span title="Max. 50 caracteres" data-toggle="tooltip" class="label-tooltip" data-html="true">
+                        Nombre
+                    </span>
+                </label>
+                <div class="col-sm-10">
+                    <input type="text" id="input_nombre_api" value="${producto.name}">
+                </div>
+            </div>
+            <div class="row row_api">
+                <label for="keywords_api" class="control-label col-sm-2 col-form-label col-form-label-sm">
+                    <span title="Introduce palabras clave separadas por coma (opcional)" data-toggle="tooltip" class="label-tooltip" data-html="true">
+                        Keywords
+                    </span>
+                </label>
+                <div class="col-sm-7">
+                    <input type="text" id="input_keywords_api" placeholder="Opcional">
+                </div>
+                <label for="tono_api" class="control-label col-sm-1 col-form-label col-form-label-sm">Tono</label>
+                <div class="col-sm-2">
+                    <select id="select_tono_api">                        
+                        <option value="1">Agresivo</option>
+                        <option value="2">Creativo</option>
+                        <option value="3">Formal</option>
+                        <option value="4">Informal</option>
+                        <option value="5">Ingenioso</option>
+                        <option value="6">Irónico</option>
+                        <option value="7">Persuasivo</option>
+                        <option value="8" selected>Profesional</option>
+                    </select>
+                </div>   
+            </div>
+            <div class="row">
+                <label for="textarea_descripcion_api" class="control-label col-form-label col-form-label-sm">
+                    <span title="Última petición a API o descripción actual. Max. 500 caracteres" data-toggle="tooltip" class="label-tooltip" data-html="true">
+                        Descripción del producto para enviar a la API
+                    </span>
+                    <span id="caracteres_descripcion_api"></span>
+                </label>
+                <textarea class="form-control" id="textarea_descripcion_api" onkeyup="cuentaCaracteres();">${descripcion_api}</textarea>
+                <br>
+            </div>
+        </div>        
+        <div class="row descripcion">
+            <div class="panel clearfix panel_producto">
+                <h3>
+                    <span title="Contenido de la descripción corta del producto en Prestashop" data-toggle="tooltip" class="label-tooltip" data-html="true">
+                        Descripción actual del producto
+                    </span>
+                </h3>                
+                <textarea class="form-control" id="textarea_descripcion_actual_producto" rows="7">${producto.descripcion}</textarea>
+                <div class="btn-group pull-right">
+                    <button class="btn btn-default revisa_descripcion_producto" type="button" title="Marcar descripción de producto como revisada. Guardará el contenido en la ficha de producto" id="boton_revisar_${producto.id_product}" name="boton_revisar_${producto.id_product}" ${disable_procesando}>
+                        <i class="icon-thumbs-up"></i> Revisar
+                    </button> 
+                    <button class="btn btn-default genera_descripcion_producto" type="button" title="Generar descripción de producto con API" id="boton_generar_${producto.id_product}" name="boton_generar_${producto.id_product}" ${disable_procesando}>
+                        <i class="icon-pencil"></i> Generar
+                    </button>   
+                </div> 
+            </panel>
+        </div>                
+    </div>
+    `;
+
+    div_producto.innerHTML = `
+        <div class="panel panel_producto">                        
+            <h3>${producto.name}</h3> 
+            <div class="row">
+                ${info_producto}      
+            </div>
+            <div class="row">
+                ${api_descripcion} 
+            </div>
+        </div>
+    `;
+
+    //llamamos por primera vez a la función que nos cuenta y muestra el número de caracteres de la descripción a enviar a la API
+    cuentaCaracteres();
+
+    //añadimos eventlisteners a los botones. El botón Revisar indica que el texto ha sido revisado y por tanto lo guardamos como quede en product_lang y el botón Generar recoge los datos en los inputs para la API y llama a la clase de Redactame para hacer la petición.
+    const boton_revisar = document.querySelector("#boton_revisar_"+producto.id_product);
+
+    boton_revisar.addEventListener('click', function(){     
+        revisaDescripcion(producto.id_product)
+    }); 
+
+    const boton_generar = document.querySelector("#boton_generar_"+producto.id_product);
+
+    boton_generar.addEventListener('click', function(){  
+         generaDescripcion(producto.id_product)
+    }); 
+    
+
+}
+
+//función que marca un producto como revisado y al dar por buena la descripción de producto la actualiza en lafrips_product_lang, junto con el nombre
+function revisaDescripcion(id_product) {
+    console.log(document.querySelector("#textarea_descripcion_actual_producto").value);
+
+    const descripcion = document.querySelector("#textarea_descripcion_actual_producto").value;
+    const nombre = document.querySelector("#input_nombre_api").value;
+
+    //mostramos spinner
+    spinnerOn();
+
+    //ponemos el badge de Procesando
+    var esta_procesando = `
+        <span id="procesando_badge" class="badge badge-danger" title="Este producto está siendo procesado, los botones están deshabilitados. Espera y recarga para continuar">Atención - Procesando</span><br>        
+        `;
+
+    if (document.contains(document.querySelector('.panel_info_procesos'))) {        
+        document.querySelector('div.panel.panel_info_procesos').innerHTML = document.querySelector('div.panel.panel_info_procesos').innerHTML+esta_procesando;
+    } else {
+        var panel_info_procesos = `
+        <div class="panel panel_producto panel_info_procesos">
+            ${esta_procesando}            
+        </div>
+        `;
+        document.querySelector('#info_procesos').innerHTML = panel_info_procesos;
+    }
+    //deshabilitamos botones mientras tanto
+    document.querySelector('#boton_revisar_'+id_product).disabled = true;
+    document.querySelector('#boton_generar_'+id_product).disabled = true;
+
+    var dataObj = {};
+    dataObj['id_product'] = id_product;
+    dataObj['descripcion'] = descripcion;
+    dataObj['nombre'] = nombre;
+    //el token lo hemos sacado arriba del input hidden
+    $.ajax({
+        url: 'index.php?controller=AdminRedactorDescripciones' + '&token=' + token + "&action=revisar_descripcion" + '&ajax=1' + '&rand=' + new Date().getTime(),
+        type: 'POST',
+        data: dataObj,
+        cache: false,
+        dataType: 'json',
+        success: function (data, textStatus, jqXHR)
+        
+        {
+            if (typeof data.error === 'undefined')
+            {                                 
+                console.dir(data);     
+                
+                //si se guardó correctamente la descripción, hay que actualizar los productos, marcando como Redactado, Revisado, quitar Procesando, y permitiendo que se puedan enviar de nuevo, tanto activando el checkbox como cambiando el botón Cola a Mas cola
+                // console.log(data.id_producto_cola);
+                document.querySelector("#boton_cola_"+id_product).innerHTML = `
+                    <button class="btn btn-default mas_cola_producto" type="button" title="Añadir producto a cola" id="mas_cola_${id_product}" name="${id_product}">
+                        <i class="icon-plus"></i> Cola
+                    </button>
+                `;
+
+                //añadimos eventlistener a botón
+                document.querySelector("#mas_cola_"+id_product).addEventListener('click', function() {
+                    //enviamos name, que es el id_product, dentro de un array, a masColaProducto
+                    masColaProducto(new Array(id_product)); 
+                }); 
+
+                //el producto ya está redactado (incluso si no se llamó a la API, revisado cuenta como Redactado) mostramos success
+                document.querySelector("#redactado_"+id_product).innerHTML = `<span class="badge badge-success">Si</span>`;
+                //el producto ya está revisado (incluso si no se llamó a la API, revisado cuenta como Redactado) mostramos success
+                document.querySelector("#revisado_"+id_product).innerHTML = `<span class="badge badge-success">Si</span>`;
+                //habilitamos el checkbox en caso de no estarlo
+                document.querySelector("#product_checkbox_"+id_product).checked = false;
+                document.querySelector("#product_checkbox_"+id_product).disabled = false;            
+                
+                //el panel de  procesos lo dejamos con Redactado y Revisado
+                var panel_info_procesos = `
+                <div class="panel panel_producto panel_info_procesos">
+                    <span id="redactado_badge" class="badge badge-success" title="Este producto ya ha sido redactado y revisado">Redactado</span> 
+                    <br>
+                    <span id="revisado_badge" class="badge badge-success" title="Este producto ya ha sido redactado y revisado">Revisado</span>      
+                </div>
+                `;
+                document.querySelector('#info_procesos').innerHTML = panel_info_procesos;          
+                
+                //habilitamos botones 
+                document.querySelector('#boton_revisar_'+id_product).disabled = false;
+                document.querySelector('#boton_generar_'+id_product).disabled = false;
+                        
+
+                //eliminamos spinner
+                spinnerOff();
+
+            }
+            else
+            {                    
+                //eliminamos spinner
+                spinnerOff();
+
+                showErrorMessage(data.message);
+            }
+
+        },
+        error: function (jqXHR, textStatus, errorThrown)
+        {
+            showErrorMessage('ERRORS: ' + textStatus);
+        }
+    });  //fin ajax
+}
+
+//función que recoge los datos para enviar a la API, llama a esta y muestra el resultado
+function generaDescripcion(id_product) {
+    console.log(id_product);
+}
+
+//cuenta en tiempo real el número de caracteres en Descripción para enviar a la api
+function cuentaCaracteres() {
+    var num_caracteres = document.querySelector('#textarea_descripcion_api').value.length;
+
+    var numero = "";
+
+    if (num_caracteres < 400) {
+        numero = `<span class="badge badge-success">${num_caracteres}</span>`;
+    } else if (num_caracteres > 499) {
+        numero = `<span class="badge badge-danger">${num_caracteres}</span>`;
+    } else {
+        numero = `<span class="badge badge-warning">${num_caracteres}</span>`;
+    }
+
+    document.querySelector('#caracteres_descripcion_api').innerHTML = " Caracteres: "+numero;
+}
 
 
 //spinner de carga
