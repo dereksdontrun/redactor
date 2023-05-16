@@ -580,7 +580,7 @@ class AdminRedactorDescripcionesController extends ModuleAdminController {
         }
     }
 
-    //función que recibe un id_product y una descripción y actualiza la description_short del producto para id_lang 1. También marcará Revisado a 1, En cola a 0, etc
+    //función que recibe un id_product y una descripción y nombre y actualiza product_name y description_short del producto para id_lang 1. También marcará Revisado a 1, En cola a 0, etc
     public function ajaxProcessRevisarDescripcion() {
         $id_product = Tools::getValue('id_product',0);  
         $nombre = Tools::getValue('nombre',0);  
@@ -590,13 +590,64 @@ class AdminRedactorDescripcionesController extends ModuleAdminController {
             die(Tools::jsonEncode(array('error'=> true, 'message'=>'Error con la información del producto a revisar')));
         }
 
+        if (!Validate::isCleanHtml($nombre) || !Validate::isCleanHtml($descripcion)) {
+            die(Tools::jsonEncode(array('error'=> true, 'message'=>'Error, los campos a guardar contienen elementos inválidos')));
+        }
+
+        //instanciamos el producto para actualizar nombre y descripción, solo para id_lang 1
+        $product = new Product($id_product);
+        // para nombre se hace así, y para descripciones como abajo, cuando solo queremos afectar a un lenguaje
+        $product->name[1] = $nombre;
+        $product->description_short = array( 1=> $descripcion);
+        if ($product->update()) {
+            //marcamos como redactado y revisado, quitamos de cola
+            $id_employee = Context::getContext()->employee->id;
+
+            $sql_update_producto = "UPDATE lafrips_redactor_descripcion
+            SET
+            en_cola = 0,
+            redactado = 1, 
+            revisado = 1,
+            date_revisado = NOW(),
+            id_employee_revisado = $id_employee,
+            date_upd = NOW()
+            WHERE id_product = $id_product";            
+
+            Db::getInstance()->Execute($sql_update_producto);
+
+            die(Tools::jsonEncode(array(
+                'message'=>'Producto marcado como revisado, descripción y nombre actualizados',
+            )));
+
+        } else {
+            die(Tools::jsonEncode(array('error'=> true, 'message'=>'Error actualizando los campos a guardar')));
+        }        
+    }
+
+    //función que recibe los datos para enviar a la API y llama a la clase Redactame para hacer la petición. Actualizará Encola, procesando, etc si es necesario
+    public function ajaxProcessGenerarDescripcion() {
+        $id_product = Tools::getValue('id_product',0);  
+        $nombre = Tools::getValue('nombre',0);  
+        $keywords = Tools::getValue('keywords',0);  
+        $tono = Tools::getValue('tono',0);  
+        $descripcion = Tools::getValue('descripcion',0);               
+
+        if (empty($id_product) || empty($nombre) || empty($descripcion) || empty($tono)) {
+            die(Tools::jsonEncode(array('error'=> true, 'message'=>'Error con la información para enviar a la API')));
+        }
+
+        if (!Validate::isCleanHtml($nombre) || !Validate::isCleanHtml($descripcion) || !Validate::isCleanHtml($keywords)) {
+            die(Tools::jsonEncode(array('error'=> true, 'message'=>'Error, los campos a procesar contienen elementos inválidos')));
+        }
 
 
-
+        $descripcion_api = $nombre.$descripcion;
         die(Tools::jsonEncode(array(
-            'message'=>'Producto marcado como revisado, descripción y nombre actualizados',                     
-                            
+            'message'=>'Descripción generada correctamente, revisala antes de salir para guardarla',
+            'descripcion_api' => $descripcion_api
         )));
+
+
     }
 
 }

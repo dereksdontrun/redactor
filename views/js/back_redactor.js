@@ -1202,14 +1202,14 @@ function muestraProducto(producto) {
                 <label for="tono_api" class="control-label col-sm-1 col-form-label col-form-label-sm">Tono</label>
                 <div class="col-sm-2">
                     <select id="select_tono_api">                        
-                        <option value="1">Agresivo</option>
-                        <option value="2">Creativo</option>
-                        <option value="3">Formal</option>
-                        <option value="4">Informal</option>
-                        <option value="5">Ingenioso</option>
-                        <option value="6">Irónico</option>
-                        <option value="7">Persuasivo</option>
-                        <option value="8" selected>Profesional</option>
+                        <option value="Aggressive">Agresivo</option>
+                        <option value="Creative">Creativo</option>
+                        <option value="Formal">Formal</option>
+                        <option value="Informal">Informal</option>
+                        <option value="Witty">Ingenioso</option>
+                        <option value="Ironic">Irónico</option>
+                        <option value="Persuasive">Persuasivo</option>
+                        <option value="Professional" selected>Profesional</option>
                     </select>
                 </div>   
             </div>
@@ -1227,8 +1227,10 @@ function muestraProducto(producto) {
         <div class="row descripcion">
             <div class="panel clearfix panel_producto">
                 <h3>
-                    <span title="Contenido de la descripción corta del producto en Prestashop" data-toggle="tooltip" class="label-tooltip" data-html="true">
-                        Descripción actual del producto
+                    <span id="contenido_textarea">
+                        <span title="Contenido de la descripción corta del producto en Prestashop" data-toggle="tooltip" class="label-tooltip" data-html="true">
+                            Descripción actual del producto
+                        </span>
                     </span>
                 </h3>                
                 <textarea class="form-control" id="textarea_descripcion_actual_producto" rows="7">${producto.descripcion}</textarea>
@@ -1286,17 +1288,18 @@ function revisaDescripcion(id_product) {
     //mostramos spinner
     spinnerOn();
 
-    //ponemos el badge de Procesando
-    var esta_procesando = `
-        <span id="procesando_badge" class="badge badge-danger" title="Este producto está siendo procesado, los botones están deshabilitados. Espera y recarga para continuar">Atención - Procesando</span><br>        
+    //ponemos el badge de Revisando
+    var esta_revisando = `
+        <br>
+        <span id="revisando_badge" class="badge badge-warning" title="Este producto está siendo revisado, los botones están deshabilitados. Espera y recarga para continuar">Atención - Revisando</span><br>        
         `;
 
     if (document.contains(document.querySelector('.panel_info_procesos'))) {        
-        document.querySelector('div.panel.panel_info_procesos').innerHTML = document.querySelector('div.panel.panel_info_procesos').innerHTML+esta_procesando;
+        document.querySelector('div.panel.panel_info_procesos').innerHTML = document.querySelector('div.panel.panel_info_procesos').innerHTML+esta_revisando;
     } else {
         var panel_info_procesos = `
         <div class="panel panel_producto panel_info_procesos">
-            ${esta_procesando}            
+            ${esta_revisando}            
         </div>
         `;
         document.querySelector('#info_procesos').innerHTML = panel_info_procesos;
@@ -1359,13 +1362,27 @@ function revisaDescripcion(id_product) {
                 document.querySelector('#boton_revisar_'+id_product).disabled = false;
                 document.querySelector('#boton_generar_'+id_product).disabled = false;
                         
-
+                showSuccessMessage(data.message);
+        
                 //eliminamos spinner
                 spinnerOff();
 
             }
             else
-            {                    
+            {              
+                //el panel de  procesos lo dejamos con Error Revisado
+                var panel_info_procesos = `
+                <div class="panel panel_producto panel_info_procesos">
+                    <span id="revisado_badge" class="badge badge-danger" title="Error con el contenido a guardar">Error revisando producto</span> 
+                    <br>                                            
+                </div>
+                `;
+                document.querySelector('#info_procesos').innerHTML = panel_info_procesos; 
+
+                //habilitamos botones 
+                document.querySelector('#boton_revisar_'+id_product).disabled = false;
+                document.querySelector('#boton_generar_'+id_product).disabled = false;
+
                 //eliminamos spinner
                 spinnerOff();
 
@@ -1383,6 +1400,146 @@ function revisaDescripcion(id_product) {
 //función que recoge los datos para enviar a la API, llama a esta y muestra el resultado
 function generaDescripcion(id_product) {
     console.log(id_product);
+
+    //recogemos valores del formulario destinado a la API. Tono recoge el value del select, que es la palabra en inglés como requiere la API. Keywords, si lleva algo, lo guardaremos como venga
+    const nombre = document.querySelector("#input_nombre_api").value;
+    const keywords = document.querySelector("#input_keywords_api").value;
+    const tono = document.querySelector("#select_tono_api").value;
+    const descripcion = document.querySelector("#textarea_descripcion_api").value;
+    
+
+    if (descripcion.length > 500) {
+        showErrorMessage('La descripción a enviar a la API no puede tener más de 500 caracteres');
+        return;
+    } else if (nombre.length > 50) {
+        showErrorMessage('El nombre a enviar a la API no puede tener más de 50 caracteres');
+        return;
+    }
+
+    //mostramos spinner
+    spinnerOn();
+
+    //ponemos el badge de Procesando
+    var esta_procesando = `
+        <br>
+        <span id="procesando_badge" class="badge badge-danger" title="Este producto está siendo procesado, los botones están deshabilitados. Espera y recarga para continuar">Atención - Procesando</span><br>        
+        `;
+
+    if (document.contains(document.querySelector('.panel_info_procesos'))) {        
+        document.querySelector('div.panel.panel_info_procesos').innerHTML = document.querySelector('div.panel.panel_info_procesos').innerHTML+esta_procesando;
+    } else {
+        var panel_info_procesos = `
+        <div class="panel panel_producto panel_info_procesos">
+            ${esta_procesando}            
+        </div>
+        `;
+        document.querySelector('#info_procesos').innerHTML = panel_info_procesos;
+    }
+    //deshabilitamos botones mientras tanto
+    document.querySelector('#boton_revisar_'+id_product).disabled = true;
+    document.querySelector('#boton_generar_'+id_product).disabled = true;
+
+    var dataObj = {};
+    dataObj['id_product'] = id_product;
+    dataObj['nombre'] = nombre;
+    dataObj['keywords'] = keywords;
+    dataObj['tono'] = tono;
+    dataObj['descripcion'] = descripcion;
+
+    console.log(dataObj);
+    //el token lo hemos sacado arriba del input hidden
+    $.ajax({
+        url: 'index.php?controller=AdminRedactorDescripciones' + '&token=' + token + "&action=generar_descripcion" + '&ajax=1' + '&rand=' + new Date().getTime(),
+        type: 'POST',
+        data: dataObj,
+        cache: false,
+        dataType: 'json',
+        success: function (data, textStatus, jqXHR)
+        
+        {
+            if (typeof data.error === 'undefined')
+            {                                 
+                console.dir(data);     
+                
+                //si recibimos correctamente la descripción generada desde la API, hay que actualizar los productos, marcando como Redactado, quitar Procesando, y permitiendo que se puedan enviar de nuevo, tanto activando el checkbox como cambiando el botón Cola a Mas cola
+                // console.log(data.id_producto_cola);
+                document.querySelector("#boton_cola_"+id_product).innerHTML = `
+                    <button class="btn btn-default mas_cola_producto" type="button" title="Añadir producto a cola" id="mas_cola_${id_product}" name="${id_product}">
+                        <i class="icon-plus"></i> Cola
+                    </button>
+                `;
+
+                //añadimos eventlistener a botón
+                document.querySelector("#mas_cola_"+id_product).addEventListener('click', function() {
+                    //enviamos name, que es el id_product, dentro de un array, a masColaProducto
+                    masColaProducto(new Array(id_product)); 
+                }); 
+
+                //no cambiamos lo de Redactado y Revisado de la tabla ya que no está guardado, eso sucederá al pulsar revisado
+                // //el producto ya está redactado  mostramos success
+                // document.querySelector("#redactado_"+id_product).innerHTML = `<span class="badge badge-success">Si</span>`;
+                // //el producto no está revisado ,mostramos warning
+                // document.querySelector("#revisado_"+id_product).innerHTML = `<span class="badge badge-warning">No</span>`;
+                //habilitamos el checkbox en caso de no estarlo
+                document.querySelector("#product_checkbox_"+id_product).checked = false;
+                document.querySelector("#product_checkbox_"+id_product).disabled = false;            
+                
+                //el panel de  procesos lo dejamos con Redactado
+                var panel_info_procesos = `
+                <div class="panel panel_producto panel_info_procesos">
+                    <span id="redactado_badge" class="badge badge-warning" title="Este producto ha sido redactado y se guardará al ser revisado">Redactado a espera de Revisar / guardar</span> 
+                    <br>                        
+                </div>
+                `;
+                document.querySelector('#info_procesos').innerHTML = panel_info_procesos;          
+                
+                //habilitamos botones 
+                document.querySelector('#boton_revisar_'+id_product).disabled = false;
+                document.querySelector('#boton_generar_'+id_product).disabled = false;
+
+                //el contenido de la descripción generada lo ponemos en el textarea_descripcion_actual_producto, pero de hecho no está guardado en Prestashop hasta que no se pulse revisado, de modo que si vovlemos cargar el panel del producto aparecerá lo que haya en Prestashop
+                document.querySelector("#textarea_descripcion_actual_producto").value = data.descripcion_api;
+
+                //modificamos el texto sobre el textarea para indicar que no es la descripción actual del producto sino el retorno de la API y hay que revisar (guardar) para que se conserve. El texto se mete dentro del span id contenido_textarea
+                document.querySelector("#contenido_textarea").innerHTML = `
+                <span title="Descripción generada por la API para el producto, debes Revisar para guardarla" data-toggle="tooltip" class="label-tooltip" data-html="true">
+                    Descripción generada por API - Revisa para guardar
+                </span>
+                `;
+
+                showSuccessMessage(data.message);
+        
+                //eliminamos spinner
+                spinnerOff();
+
+            }
+            else
+            {              
+                //el panel de  procesos lo dejamos con Error Generando
+                var panel_info_procesos = `
+                <div class="panel panel_producto panel_info_procesos">
+                    <span id="revisado_badge" class="badge badge-danger" title="Error generando descripción con la API">Error generando descripción</span> 
+                    <br>                                            
+                </div>
+                `;
+                document.querySelector('#info_procesos').innerHTML = panel_info_procesos; 
+
+                //habilitamos botones 
+                document.querySelector('#boton_revisar_'+id_product).disabled = false;
+                document.querySelector('#boton_generar_'+id_product).disabled = false;
+
+                //eliminamos spinner
+                spinnerOff();
+
+                showErrorMessage(data.message);
+            }
+
+        },
+        error: function (jqXHR, textStatus, errorThrown)
+        {
+            showErrorMessage('ERRORS: ' + textStatus);
+        }
+    });  //fin ajax
 }
 
 //cuenta en tiempo real el número de caracteres en Descripción para enviar a la api
