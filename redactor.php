@@ -28,6 +28,8 @@ if (!defined('_PS_VERSION_')) {
     exit;
 }
 
+// ABAJO SQL CREAR TABLA LAFRIPS_REDACTOR_DESCRIPCION
+
 require_once(dirname(__FILE__).'/classes/Redactame.php');
 
 class Redactor extends Module
@@ -282,4 +284,34 @@ class Redactor extends Module
         $this->context->controller->addJS($this->_path.'/views/js/front.js');
         $this->context->controller->addCSS($this->_path.'/views/css/front.css');
     }
+
+    /*
+
+    CREATE TABLE `lafrips_redactor_descripcion` (
+    `id_redactor_descripcion` int(10) NOT NULL AUTO_INCREMENT,
+    `id_product` int(10) NOT NULL,
+    `procesando` tinyint(1) NOT NULL,
+    `inicio_proceso` datetime NOT NULL,
+    `api_json` text,
+    `en_cola` tinyint(1) NOT NULL,
+    `date_metido_cola` datetime NOT NULL,
+    `id_employee_metido_cola` int(10) NOT NULL,
+    `date_eliminado_cola` datetime NOT NULL,
+    `id_employee_eliminado_cola` int(10) NOT NULL,
+    `redactado` tinyint(1) NOT NULL,
+    `revisado` tinyint(1) NOT NULL,
+    `date_redactado` datetime NOT NULL,
+    `id_employee_redactado` int(10) NOT NULL,
+    `date_revisado` datetime NOT NULL,
+    `id_employee_revisado` int(10) NOT NULL,
+    `error` tinyint(4) NOT NULL,
+    `date_add` datetime NOT NULL,
+    `date_upd` datetime NOT NULL,
+    PRIMARY KEY (`id_redactor_descripcion`),
+    UNIQUE KEY `id_product` (`id_product`),
+    KEY `id_producto` (`id_product`)
+    ) ENGINE=InnoDB AUTO_INCREMENT=558 DEFAULT CHARSET=utf8;
+
+    */
 }
+
