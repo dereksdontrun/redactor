@@ -410,7 +410,7 @@ class AdminRedactorDescripcionesController extends ModuleAdminController {
         $array_ok = array();
 
         foreach ($array_id_product AS $id_product) {
-            //comprobamos si el produco ya está en la tabla, en cuyo caso haremos un update
+            //comprobamos si el producto ya está en la tabla, en cuyo caso haremos un update
             if ($id_redactor_descripcion = Db::getInstance()->getValue("SELECT id_redactor_descripcion FROM lafrips_redactor_descripcion WHERE procesando = 0 AND en_cola = 0 AND id_product = $id_product")) {
                 $sql_update_producto_cola = "UPDATE lafrips_redactor_descripcion
                 SET
@@ -511,11 +511,17 @@ class AdminRedactorDescripcionesController extends ModuleAdminController {
 
     //función que recibe un id_product y devuelve toda la información concerniente a las descripciones, además de foto, referencia etc, para mostrar en el recuadro lateral de la tabla. 
     //Tendrá un input descripción que contendrá la descripción actual del producto. Otro input que contendrá la info que se va a pasar por defecto a la API de redacta.me. Esta info será el contenido de la descripción si el producto no figura como redactado = 1, ya que si ha sido redactado, la descripción será o bien la que devolvió la api o algo similar. Si es así, en el input se pondrá el contenido que se utilizó para que la API generara la descripción y que estará guardado en api_json en la tabla redactor_descripcion. Si no ha sido redactado, es posible que el producto ya tenga una descripción completa, en cuyo caso mostraremos un mensaje de aviso o algo así, si esta tiene más de 500 caracteres que es el máximo que se puede pasar a la api.
+    //al recibir en esta función primero hay que comprobar que la tabla lafrips_redactor_descripcion ya tenga una entrada para el producto cuyyo botón se ha pulsado, para insertarla si no    
     public function ajaxProcessMostrarProducto() {
         $id_product = Tools::getValue('id_product',0);               
 
         if (empty($id_product)) {
             die(Tools::jsonEncode(array('error'=> true, 'message'=>'Error mostrando datos de producto')));
+        }
+
+        //llamamos a checkTablaRedactor() para asegurarnos de que el producto a mostrar ya existe en lafrips_redactor_descripcion y si no es así lo insertaremos        
+        if (!$this->checkTablaRedactor($id_product)) {
+            die(Tools::jsonEncode(array('error'=> true, 'message'=>'Error insertando producto en tabla de Redactor')));
         }
 
         //obtenemos el token de AdminCatalog para crear el enlace al producto en backoffice
@@ -567,6 +573,11 @@ class AdminRedactorDescripcionesController extends ModuleAdminController {
                 $producto['info_api'] = 0;
             }
 
+            //pequeña ñapa rápida para que si el nombre del empleado es Automatizador Automatizador solo lo ponga una vez
+            if ($producto['employee_redactado'] == "Automatizador Automatizador") {
+                $producto['employee_redactado'] = "Automatizador";
+            }
+
             die(Tools::jsonEncode(array(
                 'message'=>'Información de producto',                     
                 'info_producto' => $producto,                
@@ -578,6 +589,25 @@ class AdminRedactorDescripcionesController extends ModuleAdminController {
                 'message'=>'Error obteniendo la información detallada del producto'
             )));
         }
+    }
+
+    //función que comprueba si un producto ya está en la tabla lafrips_redactor_descripcion y si no lo inserta, para evitar que si se pulsa en Proecsar sin haber metido el producto antes en cola no pueda hacer updates dado que no existe en la tabla
+    public function checkTablaRedactor($id_product) {
+        //comprobamos si el producto ya está en la tabla, en cuyo caso no haremos nada
+        if (!Db::getInstance()->getValue("SELECT id_redactor_descripcion FROM lafrips_redactor_descripcion WHERE id_product = $id_product")) {
+            $sql_insert_tabla_redactor = "INSERT INTO lafrips_redactor_descripcion
+            (id_product, date_add) 
+            VALUES 
+            ($id_product, NOW())";
+
+            if (Db::getInstance()->Execute($sql_insert_tabla_redactor)) {
+                return true;
+            } else {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     //función que recibe un id_product y una descripción y nombre y actualiza product_name y description_short del producto para id_lang 1. También marcará Revisado a 1, En cola a 0, etc
@@ -640,14 +670,43 @@ class AdminRedactorDescripcionesController extends ModuleAdminController {
             die(Tools::jsonEncode(array('error'=> true, 'message'=>'Error, los campos a procesar contienen elementos inválidos')));
         }
 
+        $info_api = array(
+            "id_product" => $id_product,
+            "title" => $nombre,
+            "description" => $descripcion,
+            "keywords" => $keywords,
+            "tone" => $tono
+        );
 
-        $descripcion_api = $nombre.$descripcion;
+        //marcamos la tabla como procesando
+        if (!$id_employee = Context::getContext()->employee->id) {
+            $id_employee = 44;
+        }
+        //insertamos fecha y empleado de redactar en lafrips_redactor_descripcion
+        $sql_redactando = "UPDATE lafrips_redactor_descripcion
+        SET                
+        procesando = 1,
+        inicio_proceso = NOW(),
+        id_employee_redactado = $id_employee,                            
+        date_upd = NOW()
+        WHERE id_product = $id_product";
+
+        Db::getInstance()->executeS($sql_redactando); 
+
+        $resultado_api = Redactame::apiRedactameSolicitudDescripcion($info_api);
+
+        if ($resultado_api["result"] == 1) {
+            die(Tools::jsonEncode(array(
+                'message'=>'Descripción generada correctamente, revisala antes de salir para guardarla',
+                'descripcion_api' => $resultado_api["message"]
+            )));
+        }
+
         die(Tools::jsonEncode(array(
-            'message'=>'Descripción generada correctamente, revisala antes de salir para guardarla',
-            'descripcion_api' => $descripcion_api
+            'error' => true,
+            'message'=>'Error generando la descripción',
+            'error_message' => $resultado_api["message"]
         )));
-
-
     }
 
 }

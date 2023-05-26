@@ -28,6 +28,8 @@ if (!defined('_PS_VERSION_')) {
     exit;
 }
 
+require_once(dirname(__FILE__).'/classes/Redactame.php');
+
 class Redactor extends Module
 {
     protected $config_form = false;
@@ -60,7 +62,8 @@ class Redactor extends Module
 
         // Turn on error reporting
         ini_set('display_errors', 1);
-        error_reporting(E_ALL); 
+        // error_reporting(E_ALL); cambiamos para que no saque E_NOTICE
+        error_reporting(E_ERROR | E_WARNING | E_PARSE | E_DEPRECATED | E_STRICT);
     }
 
     /**

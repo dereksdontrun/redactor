@@ -142,9 +142,9 @@ function start() {
             </th>           
             <th class="text-center">
                 <select class="filter center" name="filtro_indexado"  id="filtro_indexado">
-                    <option value="0">-</option>
+                    <option value="0" selected="selected">-</option>
                     <option value="1">Si</option>  
-                    <option value="2" selected="selected">No</option>                                                                    
+                    <option value="2">No</option>                                                                    
                 </select>
             </th>  
             <th class="text-center">
@@ -488,7 +488,7 @@ function buscarOrdenado(e) {
 }
 
 //función que llama al controlador y pide los productos en función de los filtros y parámetros de búsqueda marcados. Se llama a esta función desde la función buscarOrdenado() si se cambia algún filtro u orden, pero para la carga inicial recibe unos parámetros por defecto.
-function obtenerProductos(id_product = "", referencia = "", nombre = "", proveedor = 0, fabricante = 0, indexado = 2, redactado = 0, revisado = 0, fecha_desde = "", fecha_hasta = "", orden = "", limite_productos = 20, numero_pagina = 1, paginacion = "") {
+function obtenerProductos(id_product = "", referencia = "", nombre = "", proveedor = 0, fabricante = 0, indexado = 0, redactado = 0, revisado = 0, fecha_desde = "", fecha_hasta = "", orden = "", limite_productos = 20, numero_pagina = 1, paginacion = "") {
     console.log(arguments);
     //ante cualquier búsqueda, si hay algo en el panel lateral limpiamos    
     if (document.contains(document.querySelector('#div_producto'))) {
@@ -1007,6 +1007,7 @@ function menosColaProducto(id_product) {
 
 }
 
+//al recibir en esta función primero hay que comprobar que la tabla lafrips_redactor_descripcion ya tenga una entrada para el producto cuyyo botón se ha pulsado, para insertarla si no, se hará en el controlador al mismo tiempo que sacamos la info del producto
 function procesarProducto(e) {
     console.log('procesar producto '+e.currentTarget.id);
 
@@ -1015,7 +1016,7 @@ function procesarProducto(e) {
         document.querySelector('#div_producto').remove();
     } 
 
-    //usamos currentTarget en lugar de target, ya que si se pulsa sobre el icono del botón lo interpreta como target, no teniendo la clase que buscamos, ni el id, etc. Con currentTarget, se va hacia arriba buscando el disparador del event listener
+    //usamos currentTarget en lugar de target, ya que si se pulsa sobre el icono del botón lo interpreta como target, no teniendo la clase que buscamos, ni el id, etc. Con currentTarget, se va hacia arriba buscando el disparador del event listener    
     if(e.currentTarget && e.currentTarget.classList.contains('procesa_producto')){                    
         //para sacar el id del producto, cogemos el id del botón pulsado y separamos por _        
         var botonId = e.currentTarget.id;
@@ -1186,8 +1187,11 @@ function muestraProducto(producto) {
                         Nombre
                     </span>
                 </label>
-                <div class="col-sm-10">
-                    <input type="text" id="input_nombre_api" value="${producto.name}">
+                <div class="col-sm-9">
+                    <input type="text" id="input_nombre_api" value="${producto.name}" onkeyup="cuentaCaracteres(this);">
+                </div>
+                <div class="col-sm-1">
+                    <span id="caracteres_nombre_api"></span>
                 </div>
             </div>
             <div class="row row_api">
@@ -1220,7 +1224,7 @@ function muestraProducto(producto) {
                     </span>
                     <span id="caracteres_descripcion_api"></span>
                 </label>
-                <textarea class="form-control" id="textarea_descripcion_api" onkeyup="cuentaCaracteres();">${descripcion_api}</textarea>
+                <textarea class="form-control" id="textarea_descripcion_api" onkeyup="cuentaCaracteres(this);">${descripcion_api}</textarea>
                 <br>
             </div>
         </div>        
@@ -1260,7 +1264,8 @@ function muestraProducto(producto) {
     `;
 
     //llamamos por primera vez a la función que nos cuenta y muestra el número de caracteres de la descripción a enviar a la API
-    cuentaCaracteres();
+    cuentaCaracteres(document.querySelector('#textarea_descripcion_api'));
+    cuentaCaracteres(document.querySelector('#input_nombre_api'));
 
     //añadimos eventlisteners a los botones. El botón Revisar indica que el texto ha sido revisado y por tanto lo guardamos como quede en product_lang y el botón Generar recoge los datos en los inputs para la API y llama a la clase de Redactame para hacer la petición.
     const boton_revisar = document.querySelector("#boton_revisar_"+producto.id_product);
@@ -1368,7 +1373,7 @@ function revisaDescripcion(id_product) {
                 spinnerOff();
 
             }
-            else
+            else 
             {              
                 //el panel de  procesos lo dejamos con Error Revisado
                 var panel_info_procesos = `
@@ -1526,12 +1531,15 @@ function generaDescripcion(id_product) {
 
                 //habilitamos botones 
                 document.querySelector('#boton_revisar_'+id_product).disabled = false;
-                document.querySelector('#boton_generar_'+id_product).disabled = false;
+                document.querySelector('#boton_generar_'+id_product).disabled = false;                
+
+                showErrorMessage(data.message);
+
+                //Insertamos el mensaje de respuesta de la API, sea el que sea, al comienzo de la descripción del textarea
+                document.querySelector("#textarea_descripcion_actual_producto").value = data.error_message + "<br><br><br>" + document.querySelector("#textarea_descripcion_actual_producto").value;
 
                 //eliminamos spinner
                 spinnerOff();
-
-                showErrorMessage(data.message);
             }
 
         },
@@ -1542,21 +1550,41 @@ function generaDescripcion(id_product) {
     });  //fin ajax
 }
 
-//cuenta en tiempo real el número de caracteres en Descripción para enviar a la api
-function cuentaCaracteres() {
-    var num_caracteres = document.querySelector('#textarea_descripcion_api').value.length;
+//cuenta en tiempo real el número de caracteres en Descripción y nombre para enviar a la api
+//es llamada con "this" como argumento, this es el elemento que ha recibido el keyup, de modo que podemos sacar su id como su atributo para saber a qué elelemtno nos referimos
+function cuentaCaracteres(arg) {
+    // var num_caracteres = document.querySelector('#textarea_descripcion_api').value.length;
+    var num_caracteres = arg.value.length;
+    // +console.log('num_caracteres '+num_caracteres);
+
+    var element_id = arg.getAttribute('id');
+    // console.log('element_id '+element_id);
 
     var numero = "";
 
-    if (num_caracteres < 400) {
-        numero = `<span class="badge badge-success">${num_caracteres}</span>`;
-    } else if (num_caracteres > 499) {
-        numero = `<span class="badge badge-danger">${num_caracteres}</span>`;
-    } else {
-        numero = `<span class="badge badge-warning">${num_caracteres}</span>`;
+    if (element_id == 'textarea_descripcion_api') {
+        if (num_caracteres < 400) {
+            numero = `<span class="badge badge-success">${num_caracteres}</span>`;
+        } else if (num_caracteres > 500) {
+            numero = `<span class="badge badge-danger">${num_caracteres}</span>`;
+        } else {
+            numero = `<span class="badge badge-warning">${num_caracteres}</span>`;
+        }
+    
+        document.querySelector('#caracteres_descripcion_api').innerHTML =  numero;
     }
 
-    document.querySelector('#caracteres_descripcion_api').innerHTML = " Caracteres: "+numero;
+    if (element_id == 'input_nombre_api') {
+        if (num_caracteres < 42) {
+            numero = `<span class="badge badge-success">${num_caracteres}</span>`;
+        } else if (num_caracteres > 50) {
+            numero = `<span class="badge badge-danger">${num_caracteres}</span>`;
+        } else {
+            numero = `<span class="badge badge-warning">${num_caracteres}</span>`;
+        }
+    
+        document.querySelector('#caracteres_nombre_api').innerHTML = numero;
+    }    
 }
 
 
