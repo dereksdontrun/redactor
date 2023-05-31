@@ -233,6 +233,8 @@ class AdminRedactorDescripcionesController extends ModuleAdminController {
             $where_redactado = " AND (red.procesando = 1 OR red.en_cola = 1)";
         } elseif ($redactado == 3) { //el producto no está ni redactado, ni procesando ni en cola, puede no estar en la tabla
             $where_redactado = " AND (red.redactado = 0 OR red.redactado IS NULL) AND (red.procesando = 0 OR red.procesando IS NULL) AND (red.en_cola = 0 OR red.en_cola IS NULL)";
+        } elseif ($redactado == 4) { //el producto tiene error = 1, en principio el resto estarán a 0, pero solo buscamos error
+            $where_redactado = " AND red.error = 1";
         } else {
             $where_redactado = ""; //sacar todos
         } 
@@ -348,6 +350,7 @@ class AdminRedactorDescripcionesController extends ModuleAdminController {
         END AS indexado,
         pro.date_add AS date_add,
         CASE
+        WHEN red.error = 1 THEN 3
         WHEN red.redactado = 1 AND red.en_cola = 0 THEN 1        
         WHEN red.procesando = 1 OR red.en_cola = 1 THEN 2
         ELSE 0
@@ -417,6 +420,7 @@ class AdminRedactorDescripcionesController extends ModuleAdminController {
                 en_cola = 1,
                 date_metido_cola = NOW(),
                 id_employee_metido_cola = $id_employee,
+                error = 0,
                 date_upd = NOW()
                 WHERE id_redactor_descripcion = $id_redactor_descripcion";  
 
@@ -545,6 +549,9 @@ class AdminRedactorDescripcionesController extends ModuleAdminController {
         IFNULL(red.en_cola, 0) AS en_cola, 
         IFNULL(red.revisado, 0) AS revisado, 
         IFNULL(red.procesando, 0) AS procesando,
+        IFNULL(red.error, 0) AS en_error,
+        IFNULL(DATE_FORMAT(red.date_error,'%d-%m-%Y %H:%i:%S'), 'No disponible') AS date_error,
+        IFNULL(red.error_message, 'No disponible') AS error_message,
         IFNULL(DATE_FORMAT(red.inicio_proceso,'%d-%m-%Y %H:%i:%S'), 'No disponible') AS date_inicio_proceso, 
 		IFNULL(DATE_FORMAT(red.date_metido_cola,'%d-%m-%Y %H:%i:%S'), 'No disponible') AS date_metido_cola, 
         IFNULL(DATE_FORMAT(red.date_redactado,'%d-%m-%Y %H:%i:%S'), 'No disponible') AS date_redactado, 
@@ -554,7 +561,8 @@ class AdminRedactorDescripcionesController extends ModuleAdminController {
         IFNULL((SELECT CONCAT(firstname,' ',lastname) FROM lafrips_employee WHERE id_employee = red.id_employee_revisado), 'No disponible') AS employee_revisado,   
         red.api_json AS api_json,        
         IFNULL(CONCAT( '$url_base', ima.id_image, '-home_default/', pla.link_rewrite, '.jpg'), CONCAT('$url_base', 'img/logo_producto_medium_default.jpg')) AS url_imagen,
-        CONCAT( '$url_product_back', pro.id_product) AS url_producto
+        CONCAT( '$url_product_back', pro.id_product) AS url_producto,
+        pro.active AS activo
         FROM lafrips_product pro
         JOIN lafrips_product_lang pla ON pro.id_product = pla.id_product AND pla.id_lang = 1
         LEFT JOIN lafrips_image ima ON ima.id_product = pro.id_product AND ima.cover = 1   
@@ -638,6 +646,7 @@ class AdminRedactorDescripcionesController extends ModuleAdminController {
             en_cola = 0,
             redactado = 1, 
             revisado = 1,
+            error = 0,
             date_revisado = NOW(),
             id_employee_revisado = $id_employee,
             date_upd = NOW()
@@ -707,6 +716,33 @@ class AdminRedactorDescripcionesController extends ModuleAdminController {
             'message'=>'Error generando la descripción',
             'error_message' => $resultado_api["message"]
         )));
+    }
+
+    //función que activa un producto en Prestashop
+    public function ajaxProcessActivarProducto(){
+        $id_product = Tools::getValue('id_product',0);               
+
+        if (empty($id_product)) {
+            die(Tools::jsonEncode(array('error'=> true, 'message'=>'Error recibiendo el producto a activar')));
+        }
+
+        $product = new Product($id_product);
+        
+        $product->active = true;
+        
+        if ($product->update()) {
+            //lanzamos esta función para que se "repase" el stock, de modo que el hook de importaproveedor mirará si este producto está en lafrips_import_catalogos con disponibilidad de stock y lo pondrá en permitir pedidos si no tiene stock
+            StockAvailable::synchronize($id_product);
+
+            die(Tools::jsonEncode(array(
+                'message'=>'Producto activado correctamente'                 
+            )));
+        } else {
+            die(Tools::jsonEncode(array(
+                'error'=> true, 
+                'message'=>'Error activando producto'
+            )));
+        }     
     }
 
 }

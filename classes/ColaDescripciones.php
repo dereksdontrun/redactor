@@ -23,6 +23,11 @@ class ColaDescripciones
     public $my_max_execution_time;
     //momento de inicio del script, en segundos, para comparar con max_execution_time
     public $inicio;
+    //un segundo max execution time definido a 25 minutos, para, a 29/05/2023 programar dos veces por hora el cron en producción, asegurándome de que no llegará a la media hora de max_excution_time de PHP. Programaré la tarea dos veces por hora, a y 5 y a y 35. Así al tener un max de 25 minutos parará cuando alcnace el primer límite, que podría ser 25 o si alguien modifica max_execution_time de PHP y lo acorta o alarga.//DE MOMENTO NO LO USO DADO QUE TENEMOS EN PHP DEFINIDO 50 minutos. Ejecuto una vez por hora
+
+    //un segundo max execution time definido a 25 minutos para programarlo dos veces por hora sin que se solapen, mientras descubro la razón de que pare cada aprox 10 productos o 5-10 minutos
+    public $max_execution_time_25_minutos = 1500;
+    
 
     //directorio para log
     // public $directorio_log = _PS_ROOT_DIR_.'/modules/redactor/log/';
@@ -38,6 +43,9 @@ class ColaDescripciones
     public function __construct() {
         $this->inicio = time();
         $this->my_max_execution_time = ini_get('max_execution_time')*0.9; //90% de max_execution_time   
+
+        //llamamos a función para que analice productos atascados en "procesando"
+        $this->checkProcesando();
  
         $this->start();
     }
@@ -65,6 +73,10 @@ class ColaDescripciones
                 //info de producto obtenida, enviamos a la API mediante la clase Redactame.php
                 $resultado_api = Redactame::apiRedactameSolicitudDescripcion($this->info_api);
 
+                if ($resultado_api["curl_info"]) {
+                    file_put_contents($this->log_file, date('Y-m-d H:i:s').' - cURL Info: '.$resultado_api["curl_info"].PHP_EOL, FILE_APPEND);
+                }                
+
                 if ($resultado_api["result"] == 1) {
                     //tenemos una descripción, supuestamente correcta, o al menos la API no dió error. La tabla ya ha sido actualizada en Redactame.php
                     $this->descripcion_api = $resultado_api["message"];
@@ -80,7 +92,9 @@ class ColaDescripciones
                         redactado = 0,
                         id_employee_redactado = 0, 
                         date_redactado = '0000-00-00 00:00:00',
-                        error = 1, 
+                        error = 1,
+                        date_error = NOW(),
+                        error_message = CONCAT(error_message, ' | Descripción generada OK pero NO guardada - ', DATE_FORMAT(NOW(),'%d-%m-%Y %H:%i:%s')),
                         date_upd = NOW()
                         WHERE id_product = ".$this->info_api["id_product"];
 
@@ -99,7 +113,7 @@ class ColaDescripciones
                 break;
             }
             
-            if ((time() - $this->inicio) >= $this->my_max_execution_time) {
+            if (((time() - $this->inicio) >= $this->my_max_execution_time) || ((time() - $this->inicio) >= $this->max_execution_time_25_minutos)) {
                 $exit = 1;
 
                 file_put_contents($this->log_file, date('Y-m-d H:i:s').' - Tiempo ejecución alcanzando límite'.PHP_EOL, FILE_APPEND);
@@ -189,6 +203,73 @@ class ColaDescripciones
         AND id_product = $id_product";
 
         return Db::getInstance()->executeS($sql_guarda_descripcion); 
+    }
+
+    //función que busca productos con proceando =1 y si inicio_proceso es superior a x tiempo, los deja en procesando = 0 para que se procesen en otra pasada.
+    public function checkProcesando() {
+        //sacamos productos con procesando = 1
+        $sql_productos_procesando = 'SELECT id_redactor_descripcion, id_product, inicio_proceso, error
+        FROM lafrips_redactor_descripcion 
+        WHERE procesando = 1';
+        $productos_procesando = Db::getInstance()->executeS($sql_productos_procesando);
+
+        $contador = 0;
+
+        if (count($productos_procesando) > 0) { 
+            foreach ($productos_procesando AS $producto) {
+                $id_redactor_descripcion = $producto['id_redactor_descripcion'];                 
+                $inicio_proceso = $producto['inicio_proceso'];
+                $id_product = $producto['id_product'];
+                $error = $producto['error'];
+
+                //comprobamos cuanto tiempo lleva procesando y si es más de 35 minutos (se ha quedado bloqueado por lo que sea) lo volvemos a poner en procesando 0 para que la siguiente pasada del proceso lo vuelva a intentar. Metemos mensaje en error_message
+                //dividimos entre 60 para sacar cuantos minutos son la diferencia de segundos       
+                $diferencia_minutos =  round((strtotime("now") - strtotime($inicio_proceso))/60, 1);
+
+                //si hubiera error = 1 lo vamos a dejar como está para revisar manualmente, si no lo reseteamos
+                if (($diferencia_minutos >= 35) && ($error == 0)) {          
+                    $contador++;         
+                    
+                    Db::getInstance()->Execute("UPDATE lafrips_redactor_descripcion
+                    SET
+                    procesando = 0, 
+                    inicio_proceso = '0000-00-00 00:00:00',                                            
+                    error_message = CONCAT(error_message, ' | Proceso reiniciado - ', DATE_FORMAT(NOW(),'%d-%m-%Y %H:%i:%s')),                              
+                    date_upd = NOW()
+                    WHERE id_redactor_descripcion = ".$id_redactor_descripcion );          
+                    
+                    if ($contador == 1) {
+                        file_put_contents($this->log_file, date('Y-m-d H:i:s').' --------------------------------------------------'.PHP_EOL, FILE_APPEND);
+                        file_put_contents($this->log_file, date('Y-m-d H:i:s').' - Reseteo productos "procesando"'.PHP_EOL, FILE_APPEND);
+                    }
+
+                    file_put_contents($this->log_file, date('Y-m-d H:i:s').' - Reseteado "procesando" para id_product '.$id_product.PHP_EOL, FILE_APPEND);
+                    
+                    continue;
+                } else {
+                    //lleva menos de X tiempo procesando o tiene error, lo ignoramos de momento
+                    if ($error == 1) {
+                        $contador++;
+
+                        if ($contador == 1) {
+                            file_put_contents($this->log_file, date('Y-m-d H:i:s').' --------------------------------------------------'.PHP_EOL, FILE_APPEND);
+                            file_put_contents($this->log_file, date('Y-m-d H:i:s').' - Reseteo productos "procesando"'.PHP_EOL, FILE_APPEND);
+                        }
+
+                        file_put_contents($this->log_file, date('Y-m-d H:i:s').' - No Reseteado "procesando" para id_product '.$id_product.' - Tiene error = 1'.PHP_EOL, FILE_APPEND);
+                    }
+
+                    continue;
+                }
+            }
+        }
+
+        if ($contador > 0) {
+            file_put_contents($this->log_file, date('Y-m-d H:i:s').' - Fin Reseteo productos "procesando"'.PHP_EOL, FILE_APPEND);
+            file_put_contents($this->log_file, date('Y-m-d H:i:s').' --------------------------------------------------'.PHP_EOL, FILE_APPEND);            
+        }
+
+        return;
     }
 
 }

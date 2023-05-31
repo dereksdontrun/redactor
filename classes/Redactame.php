@@ -86,7 +86,7 @@ class Redactame
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_ENCODING => '',
             CURLOPT_MAXREDIRS => 10,
-            CURLOPT_TIMEOUT => 0,
+            CURLOPT_TIMEOUT => 60,
             CURLOPT_FOLLOWLOCATION => true,
             CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
             CURLOPT_CUSTOMREQUEST => 'POST',
@@ -106,30 +106,54 @@ class Redactame
                 throw new Exception(curl_error($curl));
             }
         }
-        catch (Exception $e) {     
-            $error = 'Error haciendo petición a API Redacta.me - Excepción: '.$e;
+        catch (Exception $e) {    
+            $exception = $e->getMessage();
+            $file = $e->getFile();
+            $line = $e->getLine(); 
+            $code = $e->getCode();
 
-            Redactame::updateTablaRedactor(0, $id_product);        
+            $error_message = 'Error haciendo petición a API Redacta.me - Excepción:<br>'.$exception.'<br>Exception thrown in '.$file.' on line '.$line.': [Code '.$code.']';
+
+            Redactame::updateTablaRedactor(0, $id_product, $error_message);        
             
             return array(
                 "result" => 0,
-                "message" => "Error = ".$error
+                "message" => $error_message
             );
             
         }
         
         if ($response) {
 
+            $curl_info = curl_getinfo($curl);
+
+            $connect_time = $curl_info['connect_time'];
+            $total_time = $curl_info['total_time'];
+
             curl_close($curl);
+            
         
             //pasamos el JSON de respuesta a un objeto PHP. 
             $response_decode = json_decode($response); 
         
             // print_r($response_decode);
+
+            //a 29/05/2023 si la API devuelve correctamente la descripción solo hay dos valores, generatedText que es la descripción y generatedWords que es el número de palabras de la descripción. Si hay un error que no permite devolver la descripción sé que devuelve varios parámetros. Buscamos title, status y detail, interpreto que si están es que no hay generatedText y lo podemos montar como error
+            if ($response_decode->title || $response_decode->status || $response_decode->detail) {
+                $error_message = "Error: ".$response_decode->status." - ".$response_decode->title." - ".$response_decode->detail;
+
+                Redactame::updateTablaRedactor(0, $id_product, $error_message);
+                
+                return array(
+                    "result" => 0,
+                    "message" => $error_message,
+                    "curl_info" => "Connect time= ".$connect_time." - Total time= ".$total_time
+                );
+            }
         
             $response_generated_text = $response_decode->generatedText;
     
-            if ($response_generated_text) {
+            if ($response_generated_text && !is_null($response_generated_text) && !empty($response_generated_text)) {
                 Redactame::updateTablaRedactor(1, $id_product);
 
                 //la API deveulve el texto generado en párrafos con saltos de línea de tipo \n\n , es decir, dos saltos de línea. Para formatearlo a html con <p> hacemos primero un explode por \n\n y luego implode con </p><p> poniendo a principio y fin el comienzo y fin del tag <p>
@@ -138,15 +162,19 @@ class Redactame
                 
                 return array(
                     "result" => 1,
-                    "message" => $html_response
+                    "message" => $html_response,
+                    "curl_info" => "Connect time= ".$connect_time." - Total time= ".$total_time
                 );
 
             } else {
-                Redactame::updateTablaRedactor(0, $id_product);
+                $error_message = "Error, respuesta de API vacía";
+
+                Redactame::updateTablaRedactor(0, $id_product, $error_message);
                 
                 return array(
                     "result" => 0,
-                    "message" => "Error, respuesta de API vacía"
+                    "message" => $error_message,
+                    "curl_info" => "Connect time= ".$connect_time." - Total time= ".$total_time
                 );
             }
         
@@ -154,17 +182,19 @@ class Redactame
             //no hay respuesta pero cerramos igualmente
             curl_close($curl);
 
-            Redactame::updateTablaRedactor(0, $id_product);    
+            $error_message = "Error, la API no responde";
+
+            Redactame::updateTablaRedactor(0, $id_product, $error_message);    
             
             return array(
                 "result" => 0,
-                "message" => "Error, la API no responde"
+                "message" => $error_message
             );
         }  
     }
 
     //función que realiza updates a la tabla lafrips_redactor_descripcion en función del resultado
-    public static function updateTablaRedactor($redactado, $id_product) {
+    public static function updateTablaRedactor($redactado, $id_product, $error_message = "") {
 
         if (!$id_employee = Context::getContext()->employee->id) {
             $id_employee = 44;
@@ -173,13 +203,18 @@ class Redactame
         if ($redactado) {
             $sql_redactado = " redactado = 1,
             id_employee_redactado = $id_employee, 
-            date_redactado = NOW(), ";
+            date_redactado = NOW(),
+            error = 0, ";
         } else {
             $sql_redactado = " redactado = 0,
             id_employee_redactado = 0, 
-            date_redactado = '0000-00-00 00:00:00', ";
+            date_redactado = '0000-00-00 00:00:00', 
+            error = 1,
+            date_error = NOW(),
+            error_message = CONCAT(error_message, ' | '".$error_message."' - ', DATE_FORMAT(NOW(),'%d-%m-%Y %H:%i:%s')), ";
         }
-
+        // error_message = '".$error_message."', ";
+        
         //insertamos fecha y empleado de redactar en lafrips_redactor_descripcion
         $sql_update_redactado = "UPDATE lafrips_redactor_descripcion
         SET                

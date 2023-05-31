@@ -41,9 +41,16 @@
      /* margin-top: 5px; */
      position: fixed;
      top: 109px; /* 36 de menú superior, 36 de acceso a funciones y 36 de panel con breadcrumb */
-     width: 33%; /* apróximadamente, el panel de productos ocupa 8 de 12, este 4 de 12 */
+     /* width: 33%; apróximadamente, el panel de productos ocupa 8 de 12, este 4 de 12 */
+     width: 41.6%; /* apróximadamente, el panel de productos ocupa 7 de 12, este 5 de 12 */
      z-index: 2;
+     bottom: 0px;
+     overflow-y: auto;
      /* border-top: 3px solid black; */
+ }
+
+ .quita_padding {
+  padding: 3px 0px !important;
  }
  
  /* Botón scroll para volver arriba */
@@ -100,14 +107,26 @@
 }
 
 /* Panel lateral de producto, paneles interiores */
-.panel_producto {  
+#div_producto  {
+  padding-left: 12px !important;
+  
+}
+.panel_producto {   
   padding-bottom: 8px !important;
   margin-bottom: 4px !important;
+  /* height: 100% !important; */
 }
 
+/* limitamos el panel en altura y si excede lo hacemos scrollable */
 .panel_info_procesos {
   padding-top: 8px !important;
+  max-height: 100px; 
+  overflow: auto;
 }
+
+/* .area_descripcion {
+  height: 50vh;
+} */
 
 #descripcion_api {
   width: 90% !important;

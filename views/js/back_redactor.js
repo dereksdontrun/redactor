@@ -55,7 +55,7 @@ function start() {
     //vamos a añadir un panel lateral para visualizar la descripción de un producto concreto, llamado div_productos, lo creamos y ponemos adjunto antes que la tabla, de modo que se desplaza a la derecha al poner el panel de tabla
     //div para mostrar las descripciones
     const div_productos = document.createElement('div');
-    div_productos.classList.add('clearfix','col-lg-4');
+    div_productos.classList.add('clearfix','col-lg-5');
     div_productos.id = 'div_productos';
     document.querySelector('div.panel-heading').insertAdjacentElement('afterend', div_productos);
 
@@ -63,7 +63,7 @@ function start() {
     //utilizamos el mismo formato de prestashop para mostrar los productos, con tabla responsiva etc.
     //div contenedor de la tabla
     const div_tabla = document.createElement('div');
-    div_tabla.classList.add('table-responsive-row','clearfix','col-lg-8');
+    div_tabla.classList.add('table-responsive-row','clearfix','col-lg-7');
     div_tabla.id = 'div_tabla';
     document.querySelector('div.panel-heading').insertAdjacentElement('afterend', div_tabla);    
 
@@ -152,7 +152,8 @@ function start() {
                     <option value="0" selected="selected">-</option>
                     <option value="1">Si</option>  
                     <option value="2">En cola</option>   
-                    <option value="3">No</option>                                                                 
+                    <option value="3">No</option>      
+                    <option value="4">Error</option>                                                           
                 </select>
             </th>
             <th class="text-center">
@@ -622,6 +623,9 @@ function muestraListaProductos(productos, total_productos, pagina_actual) {
                 check_disabled = " disabled";
                 redactado = 'En cola';
                 badge_redactado = 'warning';
+            } else if (producto.redactado == 3) {                
+                redactado = 'Error';
+                badge_redactado = 'danger';
             } else {
                 redactado = 'No';
                 badge_redactado = 'info';
@@ -648,7 +652,7 @@ function muestraListaProductos(productos, total_productos, pagina_actual) {
             } else if ((producto.revisado == 0) && ((producto.redactado == 0) || (producto.redactado == 2))) {
                 revisado = 'No';
                 badge_revisado = 'info'; 
-            } else if ((producto.revisado == 0) && (producto.redactado == 1)) {
+            } else if (((producto.revisado == 0) && (producto.redactado == 1)) || producto.redactado == 3) {
                 revisado = 'No';
                 badge_revisado = 'danger'; 
             }
@@ -701,7 +705,7 @@ function muestraListaProductos(productos, total_productos, pagina_actual) {
                         ${boton_cola}                          
                     </div> 
                 </td>
-                <td class="text-right"> 
+                <td class="text-left quita_padding"> 
                     <div class="btn-group pull-right">
                         <button class="btn btn-default procesa_producto" type="button" title="Procesar descripción de producto" id="procesar_${producto.id_product}" name="procesar_${producto.id_product}">
                             <i class="icon-wrench"></i> Procesar
@@ -1101,6 +1105,15 @@ function muestraProducto(producto) {
         `;
     }
 
+    var esta_en_error = "";
+    if (producto.en_error == 1) {
+        esta_en_error = `
+        <span id="en_error_badge" class="badge badge-danger" title="Este producto tuvo un error al generar la descripción">Error</span> 
+        ${producto.date_error}<br>
+        ${producto.error_message}<br>
+        `;
+    }
+
     var esta_encola = "";
     if (producto.en_cola == 1) {
         esta_encola = `
@@ -1135,9 +1148,10 @@ function muestraProducto(producto) {
     } 
 
     var panel_info_procesos = "";
-    if (esta_procesando != "" || esta_encola != "" || esta_redactado != "" || esta_revisado != "") {
+    if (esta_en_error != "" || esta_procesando != "" || esta_encola != "" || esta_redactado != "" || esta_revisado != "") {
         panel_info_procesos = `
         <div class="panel panel_producto panel_info_procesos">
+            ${esta_en_error}
             ${esta_procesando}
             ${esta_encola}
             ${esta_redactado}
@@ -1145,24 +1159,41 @@ function muestraProducto(producto) {
         </div>
         `;
     }
-     
+
+    //si el producto está desactivado, mostramos un botón para activarlo    
+    var disable_activo = "";
+    var esta_activo = "";
+    if (producto.activo == 1) {
+        esta_activo = "<span class='badge badge-success' title='Producto activo en Prestashop'>Activo</span>";
+        disable_activo = " disabled";        
+    } else {
+        esta_activo = "<span class='badge badge-danger' title='Producto NO activo en Prestashop'>No Activo</span>";
+    }   
 
     var info_producto = `
     <div class="panel clearfix panel_producto">
         <div class="col-lg-3">
-            <img src="${producto.url_imagen}" alt="${producto.name}"  height="200px" width="150px"  title="${producto.name}">
+            <img src="${producto.url_imagen}" alt="${producto.name}"  height="180px" width="135px"  title="${producto.name}">
         </div>
         <div class="col-lg-1">
         </div>
         <div class="col-lg-8">
-            ID: <b>${producto.id_product}</b><br>
-            Referencia: <b>${producto.reference}</b><br> 
-            Proveedor: <b>${producto.supplier}</b><br> 
-            Fabricante: <b>${producto.manufacturer}</b><br>  
-            Indexado: <b>${indexado}</b><br>  
-            Creado: <b>${producto.date_creado}</b><br><br>
-            <div id="info_procesos">
-                ${panel_info_procesos}
+            <div class="row">
+                <div class="col-lg-5">
+                    ID: <b>${producto.id_product}</b>  <span id="esta_activo_${producto.id_product}">${esta_activo}</span><br>
+                    Indexado: <b>${indexado}</b><br>  
+                    Creado: <b>${producto.date_creado}</b><br><br>
+                </div>
+                <div class="col-lg-7">
+                    Referencia: <b>${producto.reference}</b><br> 
+                    Proveedor: <b>${producto.supplier}</b><br> 
+                    Fabricante: <b>${producto.manufacturer}</b><br> 
+                </div>
+            </div>    
+            <div class="row">        
+                <div id="info_procesos">
+                    ${panel_info_procesos}
+                </div>
             </div>
         </div>
     </div>
@@ -1236,8 +1267,18 @@ function muestraProducto(producto) {
                             Descripción actual del producto
                         </span>
                     </span>
+                    <div class="btn-group pull-right">
+                        <button class="btn btn-small" type="button" title="Marcar en negrita" id="boton_negrita" name="boton_negrita">
+                            <i class="icon-bold"></i>
+                        </button> 
+                    </div>
                 </h3>                
-                <textarea class="form-control" id="textarea_descripcion_actual_producto" rows="7">${producto.descripcion}</textarea>
+                <textarea class="form-control area_descripcion" id="textarea_descripcion_actual_producto" rows="9">${producto.descripcion}</textarea>
+                <div class="btn-group pull-left">
+                    <button class="btn btn-default activa_producto" type="button" title="Activar el producto en Prestashop" id="boton_activar_${producto.id_product}" name="boton_activar_${producto.id_product}"  ${disable_activo}>
+                        <i class="icon-money"></i> Activar
+                    </button> 
+                </div>
                 <div class="btn-group pull-right">
                     <button class="btn btn-default revisa_descripcion_producto" type="button" title="Marcar descripción de producto como revisada. Guardará el contenido en la ficha de producto" id="boton_revisar_${producto.id_product}" name="boton_revisar_${producto.id_product}" ${disable_procesando}>
                         <i class="icon-thumbs-up"></i> Revisar
@@ -1267,7 +1308,21 @@ function muestraProducto(producto) {
     cuentaCaracteres(document.querySelector('#textarea_descripcion_api'));
     cuentaCaracteres(document.querySelector('#input_nombre_api'));
 
-    //añadimos eventlisteners a los botones. El botón Revisar indica que el texto ha sido revisado y por tanto lo guardamos como quede en product_lang y el botón Generar recoge los datos en los inputs para la API y llama a la clase de Redactame para hacer la petición.
+    //queremos que el textarea de la descripción generada se adapte al contenido, de modo que si excede las rows de textarea aumente su altura. Para ello lo cogemos y reseteamos su altura con "auto" y después le asignamos scrollHeight que es la altura de scroll, su altura total. Esto unido a que el panel sticky lateral es de top:109px a bottom:0px con overflow auto, hará que si se supera la medida de la pantalla aparezca un nuevo scroll vertical para el panel
+    const textarea = document.querySelector('#textarea_descripcion_actual_producto');
+    // console.log('height1'+textarea.style.height);
+    textarea.style.height = "auto"; // Reset the height to allow content to fit
+    // console.log('height2'+textarea.style.height);
+    textarea.style.height = textarea.scrollHeight + "px"; 
+    // console.log('height3'+textarea.style.height);
+
+    //añadimos eventlisteners a los botones. El botón activar, si está activo llama a la función para activar el producto desde el módulo. El botón Revisar indica que el texto ha sido revisado y por tanto lo guardamos como quede en product_lang y el botón Generar recoge los datos en los inputs para la API y llama a la clase de Redactame para hacer la petición.
+    const boton_activar = document.querySelector("#boton_activar_"+producto.id_product);
+
+    boton_activar.addEventListener('click', function(){     
+        activarProducto(producto.id_product)
+    }); 
+
     const boton_revisar = document.querySelector("#boton_revisar_"+producto.id_product);
 
     boton_revisar.addEventListener('click', function(){     
@@ -1279,8 +1334,95 @@ function muestraProducto(producto) {
     boton_generar.addEventListener('click', function(){  
          generaDescripcion(producto.id_product)
     }); 
+
+    //para el botón de poner negrita. Si se pulsa se comprueba que haya algo seleccionado dentro del textarea llamando a getTextoNegrita()
+    const boton_negrita = document.querySelector("#boton_negrita");
+
+    boton_negrita.addEventListener('click', function(){  
+        getTextoNegrita()
+    }); 
     
 
+}
+
+//función que es llamada al pulsar el boton_negrita y revisa si dentrodel textarea hay alguna selección de texto. Para ello busca selectionStart y selectionEnd dentro del textarea, si estos son diferentes es que hay algo seleccionado.
+//después ponemos el rango seleccionado a 0 de nuevo (es como resetear) para que si pulsamos de nuevo el botón ya no tenga nada seleccionado con setSelectionRange(0, 0) ya que si no si pulsas con algo seleccionado fuera del textarea sigue teniendo "en memoria" la anterior selección
+function getTextoNegrita() {
+    // console.log('dentro negrita');
+
+    const textarea = document.querySelector('#textarea_descripcion_actual_producto');
+
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    
+    if (start !== end) {
+        //hay un rango seleccionado, sacamos el texto con substring
+        const texto_seleccionado = textarea.value.substring(start, end);
+        
+        //añadimos las etiquetas de negritas al texto seleccionado
+        const texto_negritas = "<strong>"+texto_seleccionado+"</strong>"; 
+    
+        //el nuevo texto dentro de textarea es elslice inicial hasta selectionStart con el slice final desde selectionEnd y en medio el texto con etiquetas de negrita
+        const nuevo_texto_textarea = textarea.value.slice(0, start) + texto_negritas + textarea.value.slice(end);
+
+        //añadimos el texto de nuevo al value del textarea
+        textarea.value = nuevo_texto_textarea;       
+
+        //reseteamos la selección para evitar que siga ahí si pulsamos de nuevo el botón
+        textarea.setSelectionRange(0, 0);
+    }
+}
+
+//función que pide la activación de un producto via Ajax
+function activarProducto(id_product) {
+    //mostramos spinner
+    spinnerOn();
+     
+    //preparamos la llamada ajax
+    var dataObj = {};
+
+    dataObj['id_product'] = id_product;    
+    
+    $.ajax({
+        url: 'index.php?controller=AdminRedactorDescripciones' + '&token=' + token + "&action=activar_producto" + '&ajax=1' + '&rand=' + new Date().getTime(),
+        type: 'POST',
+        data: dataObj,
+        cache: false,
+        dataType: 'json',
+        success: function (data, textStatus, jqXHR)
+        
+        {
+            if (typeof data.error === 'undefined')
+            {                
+                
+                // console.dir(data);    
+
+                //si se activó el producto, deshabilitamos le botón de activar y cambiamos en la casilla de información Activado por SI
+                document.querySelector("#boton_activar_"+id_product).disabled = true; 
+
+                document.querySelector("#esta_activo_"+id_product).innerHTML = "<span class='badge badge-success' title='Producto activo en Prestashop'>Activo</span>";                               
+
+                showSuccessMessage(data.message);
+
+                //eliminamos spinner
+                spinnerOff();
+
+            }
+            else
+            {                      
+
+                //eliminamos spinner
+                spinnerOff();
+
+                showErrorMessage(data.message);
+            }
+
+        },
+        error: function (jqXHR, textStatus, errorThrown)
+        {
+            showErrorMessage('ERRORS: ' + textStatus);
+        }
+    });  //fin ajax
 }
 
 //función que marca un producto como revisado y al dar por buena la descripción de producto la actualiza en lafrips_product_lang, junto con el nombre
