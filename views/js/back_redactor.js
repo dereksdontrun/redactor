@@ -474,7 +474,12 @@ function buscarOrdenado(e) {
     const busqueda_fecha_hasta = document.querySelector('#filtro_hasta').value; 
     const busqueda_limite_productos = document.querySelector('#filtro_limite_productos').value; 
     //obtenemos el valor de número de página del paginador
-    const numero_pagina = document.querySelector('#numero_pagina').innerHTML; 
+    var numero_pagina = document.querySelector('#numero_pagina').innerHTML; 
+
+    //si la página actual no es 1 y filtramos por algo falla al buscar. Página actual es útil para cuando vamos avanzando por las páginas, pero si hacemos un nuevo filtro queremos que obtenga los productos "desde cero", de modo que si paginacion = "", es decir, no se ha pulsado ninguna flecha de paginador para hacer esta llamda de búsqueda, reseteamos numero_pagina a 1.
+    if (paginacion == "") {
+        numero_pagina = 1;
+    }
 
     // console.log('flechaid='+flechaId); 
     // console.log(busqueda_id);

@@ -86,7 +86,7 @@ class Redactame
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_ENCODING => '',
             CURLOPT_MAXREDIRS => 10,
-            CURLOPT_TIMEOUT => 60,
+            CURLOPT_TIMEOUT => 70,
             CURLOPT_FOLLOWLOCATION => true,
             CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
             CURLOPT_CUSTOMREQUEST => 'POST',
@@ -112,9 +112,9 @@ class Redactame
             $line = $e->getLine(); 
             $code = $e->getCode();
 
-            $error_message = 'Error haciendo petición a API Redacta.me - Excepción:<br>'.$exception.'<br>Exception thrown in '.$file.' on line '.$line.': [Code '.$code.']';
+            $error_message = 'Error haciendo petición a API Redacta.me - Excepción:'.$exception.' - Exception thrown in '.$file.' on line '.$line.': [Code '.$code.']';
 
-            Redactame::updateTablaRedactor(0, $id_product, $error_message);        
+            Redactame::updateTablaRedactor(0, $id_product, pSQL($error_message));        
             
             return array(
                 "result" => 0,
@@ -211,7 +211,7 @@ class Redactame
             date_redactado = '0000-00-00 00:00:00', 
             error = 1,
             date_error = NOW(),
-            error_message = CONCAT(error_message, ' | '".$error_message."' - ', DATE_FORMAT(NOW(),'%d-%m-%Y %H:%i:%s')), ";
+            error_message = CONCAT(error_message, ' | ".$error_message." - ', DATE_FORMAT(NOW(),'%d-%m-%Y %H:%i:%s')), ";
         }
         // error_message = '".$error_message."', ";
         

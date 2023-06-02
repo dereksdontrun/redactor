@@ -25,8 +25,10 @@ class ColaDescripciones
     public $inicio;
     //un segundo max execution time definido a 25 minutos, para, a 29/05/2023 programar dos veces por hora el cron en producción, asegurándome de que no llegará a la media hora de max_excution_time de PHP. Programaré la tarea dos veces por hora, a y 5 y a y 35. Así al tener un max de 25 minutos parará cuando alcnace el primer límite, que podría ser 25 o si alguien modifica max_execution_time de PHP y lo acorta o alarga.//DE MOMENTO NO LO USO DADO QUE TENEMOS EN PHP DEFINIDO 50 minutos. Ejecuto una vez por hora
 
-    //un segundo max execution time definido a 25 minutos para programarlo dos veces por hora sin que se solapen, mientras descubro la razón de que pare cada aprox 10 productos o 5-10 minutos
-    public $max_execution_time_25_minutos = 1500;
+    //un segundo max execution time definido a x minutos para programarlo dos/tres veces por hora sin que se solapen, mientras descubro la razón de que pare cada aprox 10 productos o 5-10 minutos. Pongo 25 minutos para dos veces (1500 sec) o 18 minutos para 3 veces ()
+    //18 minutos 1080 segundos
+    //8 minutos (480 sec) para ejecutarlo cada 10, a ver que tal, ya que parece que siempre se para a los 10 productos o más o menos 5 mintuos
+    public $max_execution_time_x_minutos = 480;
     
 
     //directorio para log
@@ -113,7 +115,7 @@ class ColaDescripciones
                 break;
             }
             
-            if (((time() - $this->inicio) >= $this->my_max_execution_time) || ((time() - $this->inicio) >= $this->max_execution_time_25_minutos)) {
+            if (((time() - $this->inicio) >= $this->my_max_execution_time) || ((time() - $this->inicio) >= $this->max_execution_time_x_minutos)) {
                 $exit = 1;
 
                 file_put_contents($this->log_file, date('Y-m-d H:i:s').' - Tiempo ejecución alcanzando límite'.PHP_EOL, FILE_APPEND);
@@ -195,14 +197,16 @@ class ColaDescripciones
     public function guardaResultado() {
         $id_product = $this->info_api["id_product"];
         $descripcion = $this->descripcion_api;
-        
-        $sql_guarda_descripcion = "UPDATE lafrips_product_lang
-        SET                
-        description_short = '$descripcion'
-        WHERE id_lang = 1
-        AND id_product = $id_product";
 
-        return Db::getInstance()->executeS($sql_guarda_descripcion); 
+        //instanciamos el producto para actualizar nombre y descripción, solo para id_lang 1
+        $product = new Product($id_product);
+        // para descripciones cuando solo queremos afectar a un lenguaje        
+        $product->description_short = array( 1=> $descripcion);
+        if ($product->update()) {
+            return true;
+        }
+
+        return false; 
     }
 
     //función que busca productos con proceando =1 y si inicio_proceso es superior a x tiempo, los deja en procesando = 0 para que se procesen en otra pasada.
@@ -222,12 +226,12 @@ class ColaDescripciones
                 $id_product = $producto['id_product'];
                 $error = $producto['error'];
 
-                //comprobamos cuanto tiempo lleva procesando y si es más de 35 minutos (se ha quedado bloqueado por lo que sea) lo volvemos a poner en procesando 0 para que la siguiente pasada del proceso lo vuelva a intentar. Metemos mensaje en error_message
+                //comprobamos cuanto tiempo lleva procesando y si es más de 10 minutos (se ha quedado bloqueado por lo que sea) lo volvemos a poner en procesando 0 para que la siguiente pasada del proceso lo vuelva a intentar. Metemos mensaje en error_message
                 //dividimos entre 60 para sacar cuantos minutos son la diferencia de segundos       
                 $diferencia_minutos =  round((strtotime("now") - strtotime($inicio_proceso))/60, 1);
 
                 //si hubiera error = 1 lo vamos a dejar como está para revisar manualmente, si no lo reseteamos
-                if (($diferencia_minutos >= 35) && ($error == 0)) {          
+                if (($diferencia_minutos >= 10) && ($error == 0)) {          
                     $contador++;         
                     
                     Db::getInstance()->Execute("UPDATE lafrips_redactor_descripcion
