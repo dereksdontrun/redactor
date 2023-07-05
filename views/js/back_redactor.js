@@ -1272,10 +1272,11 @@ function muestraProducto(producto) {
                             Descripción actual del producto
                         </span>
                     </span>
-                    <div class="btn-group pull-right">
+                    <div class="btn-group pull-right">                         
                         <button class="btn btn-small" type="button" title="Marcar en negrita" id="boton_negrita" name="boton_negrita">
                             <i class="icon-bold"></i>
                         </button> 
+                        Shift+B
                     </div>
                 </h3>                
                 <textarea class="form-control area_descripcion" id="textarea_descripcion_actual_producto" rows="9">${producto.descripcion}</textarea>
@@ -1347,6 +1348,17 @@ function muestraProducto(producto) {
         getTextoNegrita()
     }); 
     
+    //queremos que si se pulsa la combinación de teclas Shift+B se compruebe si hay algo seleccionado dentro del text area y también se ponga en negrita como al pulsar el botón. El código de evento de la letra B es 66 o keyB. El de Shift es 16, pero está asociado a shiftKey
+    document.addEventListener('keydown', function (event) {        
+        // console.log(event);
+        if (event.shiftKey && event.code === 'KeyB') {
+            console.log('pulsado shift+B');            
+            getTextoNegrita();
+
+            //para evitar que se escriba la B de Shift+B hacemos event.preventDefault, de modo que el comportamiento por defecto de escribir la letra pulsada se evita, siempre que entremos en la combinación shift+b
+            event.preventDefault();
+        }        
+    });
 
 }
 
@@ -1376,6 +1388,8 @@ function getTextoNegrita() {
         //reseteamos la selección para evitar que siga ahí si pulsamos de nuevo el botón
         textarea.setSelectionRange(0, 0);
     }
+
+    return;
 }
 
 //función que pide la activación de un producto via Ajax
