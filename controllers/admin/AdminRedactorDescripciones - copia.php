@@ -413,8 +413,8 @@ class AdminRedactorDescripcionesController extends ModuleAdminController {
         $array_ok = array();
 
         foreach ($array_id_product AS $id_product) {
-            //comprobamos si el producto ya está en la tabla, en cuyo caso haremos un update. Lo buscamos y si está comprobamos si ya está en cola.
-            if ($id_redactor_descripcion = Db::getInstance()->getValue("SELECT id_redactor_descripcion FROM lafrips_redactor_descripcion WHERE id_product = $id_product")) {
+            //comprobamos si el producto ya está en la tabla, en cuyo caso haremos un update
+            if ($id_redactor_descripcion = Db::getInstance()->getValue("SELECT id_redactor_descripcion FROM lafrips_redactor_descripcion WHERE procesando = 0 AND en_cola = 0 AND id_product = $id_product")) {
                 $sql_update_producto_cola = "UPDATE lafrips_redactor_descripcion
                 SET
                 en_cola = 1,
@@ -634,9 +634,9 @@ class AdminRedactorDescripcionesController extends ModuleAdminController {
 
         //instanciamos el producto para actualizar nombre y descripción, solo para id_lang 1
         $product = new Product($id_product);
-        // para nombre y descripciones cuando solo queremos afectar a un lenguaje
+        // para nombre se hace así, y para descripciones como abajo, cuando solo queremos afectar a un lenguaje
         $product->name[1] = $nombre;
-        $product->description_short[1] = $descripcion;
+        $product->description_short = array( 1=> $descripcion);
         if ($product->update()) {
             //marcamos como redactado y revisado, quitamos de cola
             $id_employee = Context::getContext()->employee->id;
