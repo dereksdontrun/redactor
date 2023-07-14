@@ -200,8 +200,9 @@ class ColaDescripciones
 
         //instanciamos el producto para actualizar nombre y descripción, solo para id_lang 1
         $product = new Product($id_product);
-        // para descripciones cuando solo queremos afectar a un lenguaje        
-        $product->description_short = array( 1=> $descripcion);
+        // para descripciones cuando solo queremos afectar a un lenguaje
+        $product->description_short[1] = $descripcion;        
+        // $product->description_short = array( 1=> $descripcion);
         if ($product->update()) {
             return true;
         }
