@@ -177,6 +177,7 @@ class AdminRedactorDescripcionesController extends ModuleAdminController {
         $product_name = Tools::getValue('product_name',0);
         $id_supplier = Tools::getValue('id_supplier',0);
         $id_manufacturer = Tools::getValue('id_manufacturer',0);
+        $activado = Tools::getValue('activado',0);
         $indexado = Tools::getValue('indexado',0);
         $redactado = Tools::getValue('redactado',0);
         $revisado = Tools::getValue('revisado',0);
@@ -217,6 +218,14 @@ class AdminRedactorDescripcionesController extends ModuleAdminController {
             $where_fabricante = " AND pro.id_manufacturer = $id_manufacturer";
         } else {
             $where_fabricante = "";
+        }
+
+        if ($activado == 1) {
+            $where_activado = " AND pro.active = 1";
+        } elseif ($activado == 2) {
+            $where_activado = " AND pro.active = 0";
+        } else {
+            $where_activado = "";
         }
 
         if ($indexado == 1) {
@@ -281,6 +290,7 @@ class AdminRedactorDescripcionesController extends ModuleAdminController {
         $where_nombre
         $where_proveedor
         $where_fabricante
+        $where_activado
         $where_indexado
         $where_redactado 
         $where_revisado       
@@ -343,7 +353,7 @@ class AdminRedactorDescripcionesController extends ModuleAdminController {
         $url_product_back = $url_base.'lfadminia/index.php?controller=AdminProducts&updateproduct&token='.$token_adminproducts.'&id_product=';  
 
         $sql_productos = "SELECT pro.id_product AS id_product, pro.reference AS reference, pla.name AS name, pro.id_supplier AS id_supplier, sup.name AS supplier,
-        pro.id_manufacturer AS id_manufacturer, man.name AS manufacturer, 
+        pro.id_manufacturer AS id_manufacturer, man.name AS manufacturer, pro.active AS activo,
         CASE
         WHEN pla.link_rewrite LIKE '%_kidscrd' OR pla.link_rewrite LIKE '%-noindxr' THEN 0
         ELSE 1
@@ -370,6 +380,7 @@ class AdminRedactorDescripcionesController extends ModuleAdminController {
         $where_nombre
         $where_proveedor
         $where_fabricante
+        $where_activado
         $where_indexado
         $where_redactado
         $where_revisado

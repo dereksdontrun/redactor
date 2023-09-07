@@ -107,11 +107,7 @@ function start() {
                 </span>
             </th>
             <th class="fixed-width-xs text-center">
-                <span class="title_box"> Activo
-                </span>
-            </th>
-            <th class="fixed-width-xs text-center">
-                <span class="title_box"> Index
+                <span class="title_box">Indexado
                 </span>
             </th>    
             <th class="fixed-width-xs text-center">
@@ -142,13 +138,6 @@ function start() {
             </th> 
             <th class="text-center">
                 <select class="filter center"  name="filtro_fabricante" id="filtro_fabricante">                                                                                       
-                </select>
-            </th>
-            <th class="text-center">
-                <select class="filter center" name="filtro_activado"  id="filtro_activado">
-                    <option value="0" selected="selected">-</option>
-                    <option value="1">Si</option>  
-                    <option value="2">No</option>                                                                    
                 </select>
             </th>           
             <th class="text-center">
@@ -348,12 +337,6 @@ function start() {
         buscarOrdenado(e);        
     });
 
-    //añadimos event listener para el select de activado, para cuando se cambia
-    document.querySelector('#filtro_activado').addEventListener('change', function (e) {        
-        //llamamos a buscarOrdenado, que recogerá lo que tengamos en select e inputs.
-        buscarOrdenado(e);        
-    });
-
     //añadimos event listener para el select de indexado, para cuando se cambia
     document.querySelector('#filtro_indexado').addEventListener('change', function (e) {        
         //llamamos a buscarOrdenado, que recogerá lo que tengamos en select e inputs.
@@ -484,7 +467,6 @@ function buscarOrdenado(e) {
     const busqueda_nombre = document.querySelector('#filtro_nombre').value;  
     const busqueda_proveedor = document.querySelector('#filtro_proveedor').value;  
     const busqueda_fabricante = document.querySelector('#filtro_fabricante').value;  
-    const busqueda_activado = document.querySelector('#filtro_activado').value;
     const busqueda_indexado = document.querySelector('#filtro_indexado').value; 
     const busqueda_redactado = document.querySelector('#filtro_redactado').value; 
     const busqueda_revisado = document.querySelector('#filtro_revisado').value; 
@@ -507,12 +489,12 @@ function buscarOrdenado(e) {
     // console.log(busqueda_fecha_hasta);
     console.log('numero_pagina='+numero_pagina); 
         
-    obtenerProductos(busqueda_id_product, busqueda_referencia, busqueda_nombre, busqueda_proveedor, busqueda_fabricante, busqueda_activado, busqueda_indexado, busqueda_redactado, busqueda_revisado, busqueda_fecha_desde, busqueda_fecha_hasta, flecha_orden, busqueda_limite_productos, numero_pagina, paginacion);
+    obtenerProductos(busqueda_id_product, busqueda_referencia, busqueda_nombre, busqueda_proveedor, busqueda_fabricante, busqueda_indexado, busqueda_redactado, busqueda_revisado, busqueda_fecha_desde, busqueda_fecha_hasta, flecha_orden, busqueda_limite_productos, numero_pagina, paginacion);
     
 }
 
 //función que llama al controlador y pide los productos en función de los filtros y parámetros de búsqueda marcados. Se llama a esta función desde la función buscarOrdenado() si se cambia algún filtro u orden, pero para la carga inicial recibe unos parámetros por defecto.
-function obtenerProductos(id_product = "", referencia = "", nombre = "", proveedor = 0, fabricante = 0, activado = 0, indexado = 0, redactado = 0, revisado = 0, fecha_desde = "", fecha_hasta = "", orden = "", limite_productos = 20, numero_pagina = 1, paginacion = "") {
+function obtenerProductos(id_product = "", referencia = "", nombre = "", proveedor = 0, fabricante = 0, indexado = 0, redactado = 0, revisado = 0, fecha_desde = "", fecha_hasta = "", orden = "", limite_productos = 20, numero_pagina = 1, paginacion = "") {
     console.log(arguments);
     //ante cualquier búsqueda, si hay algo en el panel lateral limpiamos    
     if (document.contains(document.querySelector('#div_producto'))) {
@@ -530,7 +512,6 @@ function obtenerProductos(id_product = "", referencia = "", nombre = "", proveed
     dataObj['product_name'] = nombre;  
     dataObj['id_supplier'] = proveedor;
     dataObj['id_manufacturer'] = fabricante;
-    dataObj['activado'] = activado;
     dataObj['indexado'] = indexado;
     dataObj['redactado'] = redactado;
     dataObj['revisado'] = revisado;
@@ -625,29 +606,19 @@ function muestraListaProductos(productos, total_productos, pagina_actual) {
     //por cada producto, generamos un tr que hacemos appenchild a tbody
     productos.forEach(
         producto => {
-            num_productos++;   
-            var activado = '';  
+            num_productos++;     
             var indexado = '';
             var redactado = '';     
             var revisado = '';  
-            var badge_activado = '';
             var badge_redactado = '';
             var badge_revisado = '';         
 
-            //ponemos badge en redactado y en revisado. 07/09/2023 añadimos Activo (activado. Badge success si si, danger si no). Redactado tendrá badge 'info' si aún no se ha hecho nada, 'warning' si está en lista o procesando y success si ya está redactado. Revisado tendrá 'info' si el producto aún no ha sido redactado, danger si ha sido redactado pero no revisado, y success cuando está redactado y revisado.     
+            //ponemos badge en redactado y en revisado. Redactado tendrá badge 'info' si aún no se ha hecho nada, 'warning' si está en lista o procesando y success si ya está redactado. Revisado tendrá 'info' si el producto aún no ha sido redactado, danger si ha sido redactado pero no revisado, y success cuando está redactado y revisado.     
             if (producto.indexado == 1) {
                 indexado = 'Si';
             } else {
                 indexado = 'No';
             } 
-
-            if (producto.activo == 1) {
-                activado = 'Si';
-                badge_activado = 'success';
-            } else {
-                activado = 'No';
-                badge_activado = 'danger';
-            }
             
             var check_disabled = "";
             if (producto.redactado == 1) {
@@ -714,9 +685,6 @@ function muestraListaProductos(productos, total_productos, pagina_actual) {
                 </td>
                 <td class="fixed-width-md center">
                     ${producto.manufacturer}
-                </td>
-                <td class="fixed-width-xs center" id="activado_${producto.id_product}">
-                    <span class="badge badge-${badge_activado}">${activado}</span>
                 </td>
                 <td class="fixed-width-xs center">
                     ${indexado}
@@ -1425,7 +1393,6 @@ function getTextoNegrita() {
 }
 
 //función que pide la activación de un producto via Ajax
-//07/09/2023 Hemos añadido filtro por producto Activo o no, cuando se active desde aquí cambiaremos el badeg en lista de productos a Activo y success
 function activarProducto(id_product) {
     //mostramos spinner
     spinnerOn();
@@ -1452,11 +1419,7 @@ function activarProducto(id_product) {
                 //si se activó el producto, deshabilitamos le botón de activar y cambiamos en la casilla de información Activado por SI
                 document.querySelector("#boton_activar_"+id_product).disabled = true; 
 
-                document.querySelector("#esta_activo_"+id_product).innerHTML = "<span class='badge badge-success' title='Producto activo en Prestashop'>Activo</span>";     
-                
-                document.querySelector("#activado_"+id_product).innerHTML = `
-                    <span class="badge badge-success">Si</span>
-                `;
+                document.querySelector("#esta_activo_"+id_product).innerHTML = "<span class='badge badge-success' title='Producto activo en Prestashop'>Activo</span>";                               
 
                 showSuccessMessage(data.message);
 
