@@ -28,7 +28,7 @@ class ColaDescripciones
     //un segundo max execution time definido a x minutos para programarlo dos/tres veces por hora sin que se solapen, mientras descubro la razón de que pare cada aprox 10 productos o 5-10 minutos. Pongo 25 minutos para dos veces (1500 sec) o 18 minutos para 3 veces ()
     //18 minutos 1080 segundos
     //8 minutos (480 sec) para ejecutarlo cada 10, a ver que tal, ya que parece que siempre se para a los 10 productos o más o menos 5 mintuos
-    public $max_execution_time_x_minutos = 480;
+    public $max_execution_time_x_minutos = 240;
     
 
     //directorio para log
@@ -75,9 +75,9 @@ class ColaDescripciones
                 //info de producto obtenida, enviamos a la API mediante la clase Redactame.php
                 $resultado_api = Redactame::apiRedactameSolicitudDescripcion($this->info_api);
 
-                if ($resultado_api["curl_info"]) {
-                    file_put_contents($this->log_file, date('Y-m-d H:i:s').' - cURL Info: '.$resultado_api["curl_info"].PHP_EOL, FILE_APPEND);
-                }                
+                // if ($resultado_api["curl_info"]) {
+                //     file_put_contents($this->log_file, date('Y-m-d H:i:s').' - cURL Info: '.$resultado_api["curl_info"].PHP_EOL, FILE_APPEND);
+                // }                
 
                 if ($resultado_api["result"] == 1) {
                     //tenemos una descripción, supuestamente correcta, o al menos la API no dió error. La tabla ya ha sido actualizada en Redactame.php
@@ -85,24 +85,19 @@ class ColaDescripciones
 
                     $this->contador_correctos++;
 
-                    if ($this->guardaResultado()) {
+                    //guardamos el resultado actualizando el producto. Al hacerlo por cola no se modifica el nombre y no enviamos el parámetro a actualizaProducto(), que devolverá true si va bien y un mensaje de error si no.                    
+                    if (($retorno_actualiza_producto = Redactame::actualizaProducto($this->info_api["id_product"], $this->descripcion_api)) === true) {
+                        //marcamos redactado
+                        Redactame::updateTablaRedactorRedactado(1, $this->info_api["id_product"]);
+
                         file_put_contents($this->log_file, date('Y-m-d H:i:s').' - Descripción generada y guardada para id_product '.$this->info_api["id_product"].PHP_EOL, FILE_APPEND);
-                    } else {
-                        //marcamos error y quitamos redactado
-                        $sql_error = "UPDATE lafrips_redactor_descripcion
-                        SET
-                        redactado = 0,
-                        id_employee_redactado = 0, 
-                        date_redactado = '0000-00-00 00:00:00',
-                        error = 1,
-                        date_error = NOW(),
-                        error_message = CONCAT(error_message, ' | Descripción generada OK pero NO guardada - ', DATE_FORMAT(NOW(),'%d-%m-%Y %H:%i:%s')),
-                        date_upd = NOW()
-                        WHERE id_product = ".$this->info_api["id_product"];
+                    } else { 
+                        //marcamos error y quitamos redactado, e insertamos el mensaje de error de excepción devuelto
+                        $retorno_actualiza_producto = pSQL($retorno_actualiza_producto);
 
-                        Db::getInstance()->executeS($sql_error); 
+                        Redactame::updateTablaRedactorRedactado(0, $this->info_api["id_product"], $retorno_actualiza_producto);              
 
-                        file_put_contents($this->log_file, date('Y-m-d H:i:s').' - Error: Descripción generada NO guardada para id_product '.$this->info_api["id_product"].PHP_EOL, FILE_APPEND);
+                        file_put_contents($this->log_file, date('Y-m-d H:i:s').' - Error: Descripción generada NO guardada para id_product '.$this->info_api["id_product"].' - '.$retorno_actualiza_producto.PHP_EOL, FILE_APPEND);
                     }
                     
                 } else {
@@ -143,10 +138,22 @@ class ColaDescripciones
             //sacamos la info necesaria para enviar a la API de redacta.me
             //por defecto, para el proceso automático, no enviamos keywords y el tono es siempre Professional
             //damos por buenos el nombre y la descripción corta en español del producto, cortando a 50 y 500 carácteres respectivamente por si acaso, dado que es el límite de la API
-            $sql_info_producto = "SELECT SUBSTRING(name, 1, 50) AS nombre, SUBSTRING(description_short, 1, 500) AS descripcion 
-            FROM lafrips_product_lang WHERE id_lang = 1 AND id_product = $id_product";
+            //11/03/2024 He cambiado el proceso de modo que en el campo api_json se guarda el json de la primera vez que se hace petición a la api, de modo que ahí estaría guardada la descripción original preparada para la api, en el caso de estar preparada. Para el caso de que se meta en cola un producto que ya fue procesado para descripción, primero comprobamos si existe ese valor en api_json y si es así sacamos la desciprión original para enviar a la api. de este modo evitamos que aquí recojamos una descripción recortada a 500 caracteres que podría no funcionar bien.
+            // $sql_info_producto = "SELECT SUBSTRING(name, 1, 50) AS nombre, SUBSTRING(description_short, 1, 500) AS descripcion 
+            // FROM lafrips_product_lang WHERE id_lang = 1 AND id_product = $id_product";
+
+            $sql_info_producto = "SELECT SUBSTRING(name, 1, 50) AS nombre, SUBSTRING(description_short, 1, 500) AS descripcion, red.api_json AS api_json 
+            FROM lafrips_product_lang pla
+            JOIN lafrips_redactor_descripcion red ON red.id_product = pla.id_product
+            WHERE pla.id_lang = 1 
+            AND pla.id_product = $id_product";
 
             $info_producto = Db::getInstance()->getRow($sql_info_producto);
+
+            //si hay json almacenado sacamos la descripción del objeto resultante de jsondecode, sino enviamos la que tenga el producto
+            if ($info_producto['api_json']) {
+                $info_producto['descripcion'] = json_decode($info_producto['api_json'])->parameters->Description;
+            } 
 
             if (!$info_producto['nombre'] || !$info_producto['descripcion']) {
                 $sql_error = "UPDATE lafrips_redactor_descripcion
@@ -170,45 +177,14 @@ class ColaDescripciones
                 "description" => $info_producto['descripcion'],
                 "keywords" => "",
                 "tone" => "Professional"
-            );
-
-            //marcamos la tabla redactor_descripcion como procesando
-            if (!$id_employee = Context::getContext()->employee->id) {
-                $id_employee = 44;
-            }
-            //insertamos fecha y empleado de redactar en lafrips_redactor_descripcion
-            $sql_redactando = "UPDATE lafrips_redactor_descripcion
-            SET                
-            procesando = 1,
-            inicio_proceso = NOW(),
-            id_employee_redactado = $id_employee,                            
-            date_upd = NOW()
-            WHERE id_product = $id_product";
-
-            Db::getInstance()->executeS($sql_redactando); 
+            );            
 
             return true;
 
         } else {
             return false;
         }
-    }
-
-    public function guardaResultado() {
-        $id_product = $this->info_api["id_product"];
-        $descripcion = $this->descripcion_api;
-
-        //instanciamos el producto para actualizar nombre y descripción, solo para id_lang 1
-        $product = new Product($id_product);
-        // para descripciones cuando solo queremos afectar a un lenguaje
-        $product->description_short[1] = $descripcion;        
-        // $product->description_short = array( 1=> $descripcion);
-        if ($product->update()) {
-            return true;
-        }
-
-        return false; 
-    }
+    }    
 
     //función que busca productos con proceando =1 y si inicio_proceso es superior a x tiempo, los deja en procesando = 0 para que se procesen en otra pasada.
     public function checkProcesando() {

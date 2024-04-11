@@ -81,9 +81,16 @@ class Redactame
 
         Db::getInstance()->executeS($sql_redactando);               
 
+        //BORRAR
+        file_put_contents(_PS_ROOT_DIR_.'/modules/redactor/log/descripciones.txt', date('Y-m-d H:i:s').' - apiRedactameSolicitudDescripcion antes de apiCallDescription'.PHP_EOL, FILE_APPEND);
+
         // return Redactame::apiCallDescription($array_json, $id_product);
         //20/02/2024 Vamos a hacer una segunda llamda a la API para obtener palabras clave de la descripción
         $description = Redactame::apiCallDescription($array_json, $id_product);
+
+        //BORRAR
+        file_put_contents(_PS_ROOT_DIR_.'/modules/redactor/log/descripciones.txt', date('Y-m-d H:i:s').' - apiRedactameSolicitudDescripcion despues de apiCallDescription'.PHP_EOL, FILE_APPEND);
+
         //si hubo error generando descripción devolvemos el error a donde hallamos llamado a esta función
         if (!$description["result"]) {
             return $description;
@@ -97,10 +104,7 @@ class Redactame
         //utilizamos eltemplate 1 de redacta.me que corresponde a la plantilla "básica" y enviamos la descripción obtenida como parámetro, concatenando antes la frase "dame 7 palabras clave de este texto: "
         //palabras clave que pediremos por defecto
         $num_palabras_clave = 7;
-        // $api_text = "dame $num_palabras_clave palabras clave de este texto: ".$description["message"];
-        //20/03/2024 este devolvía las palabras clave de diferentes maneras, probamos este de debajo
-
-        $api_text = "dame $num_palabras_clave palabras clave de este texto, separadas por coma, sin repetir el texto: ".$description["message"];
+        $api_text = "dame $num_palabras_clave palabras clave de este texto: ".$description["message"];
 
         $array = array(
             "templateId" => 1,
@@ -115,7 +119,14 @@ class Redactame
 
         $array_json = json_encode($array);
 
+        //BORRAR
+        file_put_contents(_PS_ROOT_DIR_.'/modules/redactor/log/descripciones.txt', date('Y-m-d H:i:s').' - apiRedactameSolicitudDescripcion antes de apiCallPalabrasClave'.PHP_EOL, FILE_APPEND);
+
         $palabras_clave = Redactame::apiCallPalabrasClave($array_json, $id_product, $num_palabras_clave);
+
+        //BORRAR
+        file_put_contents(_PS_ROOT_DIR_.'/modules/redactor/log/descripciones.txt', date('Y-m-d H:i:s').' - apiRedactameSolicitudDescripcion despues de apiCallPalabrasClave'.PHP_EOL, FILE_APPEND);
+
         //si hubo error generando palabras clave devolvemos el error a donde hallamos llamado a esta función
         if (!$palabras_clave["result"]) {
             return $palabras_clave;
@@ -129,6 +140,9 @@ class Redactame
         $api_key = Redactame::getApiKey();
     
         $curl = curl_init();
+
+        //BORRAR
+        file_put_contents(_PS_ROOT_DIR_.'/modules/redactor/log/descripciones.txt', date('Y-m-d H:i:s').' - Antes cURL apiCallDescription'.PHP_EOL, FILE_APPEND);
     
         curl_setopt_array($curl, array(
             CURLOPT_URL => 'https://api.redacta.me/v1/ai/texts',
@@ -173,6 +187,9 @@ class Redactame
         }
         
         if ($response) {
+
+            //BORRAR
+            file_put_contents(_PS_ROOT_DIR_.'/modules/redactor/log/descripciones.txt', date('Y-m-d H:i:s').' - apiCallDescription con $response'.PHP_EOL, FILE_APPEND);
 
             // $curl_info = curl_getinfo($curl);
 
@@ -246,6 +263,9 @@ class Redactame
             }
         
         } else {
+            //BORRAR
+            file_put_contents(_PS_ROOT_DIR_.'/modules/redactor/log/descripciones.txt', date('Y-m-d H:i:s').' - apiCallDescription sin $response'.PHP_EOL, FILE_APPEND);
+
             //no hay respuesta pero cerramos igualmente
             curl_close($curl);
 
@@ -262,6 +282,9 @@ class Redactame
     
     public static function apiCallPalabrasClave($post_fields, $id_product, $num_palabras_clave) {   
         $api_key = Redactame::getApiKey();   
+
+        //BORRAR
+        file_put_contents(_PS_ROOT_DIR_.'/modules/redactor/log/descripciones.txt', date('Y-m-d H:i:s').' - antes cURL apiCallPalabrasClave'.PHP_EOL, FILE_APPEND);
     
         $curl = curl_init();
     
@@ -308,6 +331,9 @@ class Redactame
         }
         
         if ($response) {
+
+            //BORRAR
+            file_put_contents(_PS_ROOT_DIR_.'/modules/redactor/log/descripciones.txt', date('Y-m-d H:i:s').' - apiCallPalabrasClave con $response'.PHP_EOL, FILE_APPEND);
 
             // $curl_info = curl_getinfo($curl);
 
@@ -393,6 +419,9 @@ class Redactame
             }
         
         } else {
+            //BORRAR
+            file_put_contents(_PS_ROOT_DIR_.'/modules/redactor/log/descripciones.txt', date('Y-m-d H:i:s').' - apiCallPalabrasClave sin $response'.PHP_EOL, FILE_APPEND);
+
             //no hay respuesta pero cerramos igualmente
             curl_close($curl);
 
@@ -413,6 +442,9 @@ class Redactame
             $description = str_replace($palabra_clave, "<strong>$palabra_clave</strong>", $description);
         }
 
+        //BORRAR
+        file_put_contents(_PS_ROOT_DIR_.'/modules/redactor/log/descripciones.txt', date('Y-m-d H:i:s').' - ponerNegritas()'.PHP_EOL, FILE_APPEND);
+
         return array(
             "result" => 1,
             "message" => $description
@@ -432,6 +464,9 @@ class Redactame
             $description = str_replace($fan, "fans", $description);
         }
 
+        //BORRAR
+        file_put_contents(_PS_ROOT_DIR_.'/modules/redactor/log/descripciones.txt', date('Y-m-d H:i:s').' - sustituyeFanatico()'.PHP_EOL, FILE_APPEND);
+
         return $description;
     }
 
@@ -448,6 +483,9 @@ class Redactame
     //28/02/2024 Función que guardará la descripción generada, ya sea si el producto se ha procesado en Cola de descipciones, o si se ha procesado visualmente desde el front del módulo (controlador), en cuyo caso también recibirá el nombre del producto por si el usuario lo ha modificado. No debe marcar Redactado, eso debe hacerse solo cuando se genera la descripción con API, ya sea en cola de redacción o manualmente desde el front.
     //damos la opción del parámtreo nombre vacío porque el nombre por cola de redacción no se modifica, pero manualmente si se puede cambiar.    
     public static function actualizaProducto($id_product, $descripcion, $nombre = "") {
+        //BORRAR
+        file_put_contents(_PS_ROOT_DIR_.'/modules/redactor/log/descripciones.txt', date('Y-m-d H:i:s').' - actualizaProducto antes'.PHP_EOL, FILE_APPEND);
+
         //instanciamos el producto para actualizar descripción y/o nombre, solo para id_lang 1
         $product = new Product($id_product);
         // para descripciones cuando solo queremos afectar a un lenguaje
@@ -467,6 +505,9 @@ class Redactame
             WHERE id_product = $id_product";
 
             Db::getInstance()->executeS($sql_descripcion);   
+
+            //BORRAR
+            file_put_contents(_PS_ROOT_DIR_.'/modules/redactor/log/descripciones.txt', date('Y-m-d H:i:s').' - actualizaProducto despues'.PHP_EOL, FILE_APPEND);
             
             return true;
 
@@ -492,6 +533,8 @@ class Redactame
     //si estamos marcando un producto como redactado = 1, significa que está recién redactado y por tanto no revisado, pondremos revisado = 0, del mismo modo, si un producto consideramos que no está redactado, también debemos marcarlo como revisado = 0. Es decir, marcar un producto el parámetro redactado siempre implica resetear revisado, no así marcar revisado, que depende de si ya estaba redactado, como cuando viene de la cola de redacción, o si estamos revisando un producto del que acabamos de generar su descripción desde el controlador y por tanto aún no ha sido guardada, en cuyo caso, al marcar revisado también marcaremos redactado (mismo usuario)
     //07/03/2024 Solo marcaremos redactado cuando se genera la descripción por la API, es decir, al guardarla. De modo que se puede marcar revisado un producto que no fue redactado, porque a veces se utiliza este módulo para modificar descripciones de productos que no han sido generadas con él.
     public static function updateTablaRedactorRedactado($redactado, $id_product, $error_message = "") {
+        //BORRAR
+        file_put_contents(_PS_ROOT_DIR_.'/modules/redactor/log/descripciones.txt', date('Y-m-d H:i:s').' - updateTablaRedactorRedactado antes'.PHP_EOL, FILE_APPEND);
 
         if (!$id_employee = Context::getContext()->employee->id) {
             $id_employee = 44;
@@ -533,6 +576,9 @@ class Redactame
 
         Db::getInstance()->executeS($sql_update_redactado); 
 
+        //BORRAR
+        file_put_contents(_PS_ROOT_DIR_.'/modules/redactor/log/descripciones.txt', date('Y-m-d H:i:s').' - updateTablaRedactorRedactado despues'.PHP_EOL, FILE_APPEND);
+
         return;
     }
 
@@ -540,6 +586,8 @@ class Redactame
     //marcar un producto el parámetro redactado siempre implica resetear revisado, no así marcar revisado, que depende de si ya estaba redactado, como cuando viene de la cola de redacción, o si estamos revisando un producto del que acabamos de generar su descripción desde el controlador y por tanto aún no ha sido guardada, en cuyo caso, al marcar revisado también marcaremos redactado (mismo usuario). Por eso, si generamos una descripción desde el controlador, al marcar revisar, primero llamaremos a updateTablaRedactorRedactado() y seguido a updateTablaRedactorRevisado()
     //07/03/2024 Solo marcaremos redactado cuando se genera la descripción por la API, es decir, al guardarla. De modo que se puede marcar revisado un producto que no fue redactado, porque a veces se utiliza este módulo para modificar descripciones de productos que no han sido generadas con él.
     public static function updateTablaRedactorRevisado($id_product) {
+        //BORRAR
+        file_put_contents(_PS_ROOT_DIR_.'/modules/redactor/log/descripciones.txt', date('Y-m-d H:i:s').' - updateTablaRedactorRevisado antes'.PHP_EOL, FILE_APPEND);
 
         if (!$id_employee = Context::getContext()->employee->id) {
             //esta función solo se puede ejecutar desde el controlador por lo tanto tiene que haber un employee en context pero por si acaso dejamos esto
@@ -559,6 +607,9 @@ class Redactame
         WHERE id_product = $id_product";
 
         Db::getInstance()->executeS($sql_update_revisado); 
+
+        //BORRAR
+        file_put_contents(_PS_ROOT_DIR_.'/modules/redactor/log/descripciones.txt', date('Y-m-d H:i:s').' - updateTablaRedactorRevisado despues'.PHP_EOL, FILE_APPEND);
 
         return;
     }

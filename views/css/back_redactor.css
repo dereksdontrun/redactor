@@ -106,9 +106,11 @@
 
 }
 
-/* Panel lateral de producto, paneles interiores */
+/* Panel lateral de producto, paneles interiores
+  14/03/2024 pasamos de 12px a 30px
+*/
 #div_producto  {
-  padding-left: 12px !important;
+  padding-left: 30px !important;
   
 }
 .panel_producto {   
@@ -134,7 +136,7 @@
   margin-left: 5% !important;
 }
 
-#caracteres_descripcion_api {
+.caracteres_descripcion_api {
   margin-left:60px;
 }
 
@@ -270,3 +272,21 @@
     }
   }
   /* Fin css spinner */
+
+
+   /* 14/03/2024 Panel semitransparente para caundo se está procesando algo
+    por ahora no lo pongo ya que al crear el div dinámicamnete le pongo el css también
+    semi-transparent black
+    ensure it's above other elements 
+    initially hidden
+  */
+  /* #panel_procesando {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.5); 
+    z-index: 9999; 
+    display: none; 
+  } */

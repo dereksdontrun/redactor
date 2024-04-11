@@ -382,6 +382,21 @@ function start() {
     //lo append al panel, y con css lo haremos fixed
     div_productos.appendChild(boton_scroll);
 
+    //14/03/2024 Voy a añadir un div al body que inicialmente tiene display none y cuando estemos procesando algo se hará visible, oscuerciendo la pantalla e impidiendo que el usuario toque nada hasta que el proceso haya terminado
+    const panel_procesando = document.createElement("div");
+    panel_procesando.id = "panel_procesando";
+    panel_procesando.style.position = "fixed";
+    panel_procesando.style.top = "0";
+    panel_procesando.style.left = "0";
+    panel_procesando.style.width = "100%";
+    panel_procesando.style.height = "100%";
+    panel_procesando.style.backgroundColor = "rgba(0, 0, 0, 0.5)"; // semi-transparent black
+    panel_procesando.style.zIndex = "9999";
+    panel_procesando.style.display = "none"; // initially hidden
+
+    // Append the overlay div to the body
+    document.querySelector('body').appendChild(panel_procesando);
+
     //eventlistener para botón de Añadir a cola AQUÍ NO FUNCIONA ¿?
     // const boton_meter_cola_varios_bulk = document.querySelector('#meter_cola_varios');
     // boton_meter_cola_varios_bulk.addEventListener('click', meterColaBulk);
@@ -521,6 +536,9 @@ function obtenerProductos(id_product = "", referencia = "", nombre = "", proveed
     
     //mostramos spinner
     spinnerOn();
+
+    //sacamos panel procesando
+    showPanelProcesando();
      
     //preparamos la llamada ajax
     var dataObj = {};
@@ -568,6 +586,9 @@ function obtenerProductos(id_product = "", referencia = "", nombre = "", proveed
                 //eliminamos spinner
                 spinnerOff();
 
+                //escondemos panel procesando
+                hidePanelProcesando()
+
             }
             else
             {       
@@ -601,6 +622,9 @@ function obtenerProductos(id_product = "", referencia = "", nombre = "", proveed
 
                 //eliminamos spinner
                 spinnerOff();
+
+                //escondemos panel procesando
+                hidePanelProcesando()
 
                 showErrorMessage(data.message);
             }
@@ -907,6 +931,9 @@ function masColaProducto(array_ids) {
 
     //mostramos spinner
     spinnerOn();
+
+    //sacamos panel procesando
+    showPanelProcesando();
      
     //preparamos la llamada ajax
     var dataObj = {};
@@ -958,11 +985,17 @@ function masColaProducto(array_ids) {
                 
                 //eliminamos spinner
                 spinnerOff();
+
+                //escondemos panel procesando
+                hidePanelProcesando()
             }
             else
             {       
                 //eliminamos spinner
-                spinnerOff();               
+                spinnerOff();         
+                
+                //escondemos panel procesando
+                hidePanelProcesando()
 
                 showErrorMessage(data.message);
             }
@@ -983,6 +1016,9 @@ function menosColaProducto(id_product) {
 
     //mostramos spinner
     spinnerOn();
+
+    //sacamos panel procesando
+    showPanelProcesando();
      
     //preparamos la llamada ajax
     var dataObj = {};
@@ -1028,6 +1064,9 @@ function menosColaProducto(id_product) {
                 //eliminamos spinner
                 spinnerOff();
 
+                //escondemos panel procesando
+                hidePanelProcesando()
+
             }
             else
             {       
@@ -1035,6 +1074,9 @@ function menosColaProducto(id_product) {
 
                 //eliminamos spinner
                 spinnerOff();
+
+                //escondemos panel procesando
+                hidePanelProcesando()
 
                 showErrorMessage(data.message);
             }
@@ -1069,6 +1111,9 @@ function procesarProducto(e) {
         //mostramos spinner
         spinnerOn();
 
+        //sacamos panel procesando
+        showPanelProcesando();
+
         var dataObj = {};
         dataObj['id_product'] = id_product;
         //el token lo hemos sacado arriba del input hidden
@@ -1092,11 +1137,17 @@ function procesarProducto(e) {
                     //eliminamos spinner
                     spinnerOff();
 
+                    //escondemos panel procesando
+                    hidePanelProcesando()
+
                 }
                 else
                 {                    
                     //eliminamos spinner
                     spinnerOff();
+
+                    //escondemos panel procesando
+                    hidePanelProcesando()
 
                     showErrorMessage(data.message);
                 }
@@ -1113,6 +1164,11 @@ function procesarProducto(e) {
 
 function muestraProducto(producto) {
     // console.log(info);
+
+    //13/03/2024 Ha habido problemas de que no se elimine el panel de producto, volvemos a preguntar aquí si hay uno y lo eliminamos. limpiamos el div id div_producto por si hay algo, no div_productos
+    if (document.contains(document.querySelector('#div_producto'))) {
+        document.querySelector('#div_producto').remove();
+    } 
 
     const div_producto = document.createElement('div');
     div_producto.classList.add('clearfix','panel_sticky');
@@ -1245,35 +1301,37 @@ function muestraProducto(producto) {
     }
 
     //la API de redacta.me necesita un nombre, hasta 50 char, una descripción, hasta 500char, palabras clave, que no usamos pero pongo input y el tono, opcional también, que usamos por defecto Profesional ponemos select, aunque cuando se haga mediante lista se usará el por defecto.
+    //08/03/2024 Añadimos un input hidden donde guardar si se genera descripción desde aquí con el botón procesar, de modo que al marcar revisar sepamos desde el controlador que estamos revisando una descripción generada en el momento y no una de la cola de redacción o simplemnte la descripción no generada por aPI
+    //13/03/2024 Añadimos el id_product a todos los inputs y textareas para evitar un posible error en ocasiones, que aparentemente no se elimina el panel de un producto al mostrar otro y al pulsar revisar por ejemplo no recoje el textarea del producto del botón.
     var api_descripcion = `
     <div class="panel clearfix panel_producto">
         <h3>INFO API y descripción${mensaje_procesando}</h3>
         <div class="row info_api">
             <div class="row row_api">
-                <label for="input_nombre_api" class="control-label col-sm-2 col-form-label col-form-label-sm">
+                <label for="input_nombre_api_${producto.id_product}" class="control-label col-sm-2 col-form-label col-form-label-sm">
                     <span title="Max. 50 caracteres" data-toggle="tooltip" class="label-tooltip" data-html="true">
                         Nombre
                     </span>
                 </label>
                 <div class="col-sm-9">
-                    <input type="text" id="input_nombre_api" value="${producto.name}" onkeyup="cuentaCaracteres(this);">
+                    <input type="text" id="input_nombre_api_${producto.id_product}" value="${producto.name}" onkeyup="cuentaCaracteres(this);">
                 </div>
                 <div class="col-sm-1">
-                    <span id="caracteres_nombre_api"></span>
+                    <span id="caracteres_nombre_api_${producto.id_product}"></span>
                 </div>
             </div>
             <div class="row row_api">
-                <label for="keywords_api" class="control-label col-sm-2 col-form-label col-form-label-sm">
+                <label for="input_keywords_api_${producto.id_product}" class="control-label col-sm-2 col-form-label col-form-label-sm">
                     <span title="Introduce palabras clave separadas por coma (opcional)" data-toggle="tooltip" class="label-tooltip" data-html="true">
                         Keywords
                     </span>
                 </label>
                 <div class="col-sm-7">
-                    <input type="text" id="input_keywords_api" placeholder="Opcional">
+                    <input type="text" id="input_keywords_api_${producto.id_product}" placeholder="Opcional">
                 </div>
-                <label for="tono_api" class="control-label col-sm-1 col-form-label col-form-label-sm">Tono</label>
+                <label for="select_tono_api_${producto.id_product}" class="control-label col-sm-1 col-form-label col-form-label-sm">Tono</label>
                 <div class="col-sm-2">
-                    <select id="select_tono_api">                        
+                    <select id="select_tono_api_${producto.id_product}">                        
                         <option value="Aggressive">Agresivo</option>
                         <option value="Creative">Creativo</option>
                         <option value="Formal">Formal</option>
@@ -1286,20 +1344,20 @@ function muestraProducto(producto) {
                 </div>   
             </div>
             <div class="row">
-                <label for="textarea_descripcion_api" class="control-label col-form-label col-form-label-sm">
+                <label for="textarea_descripcion_api_${producto.id_product}" class="control-label col-form-label col-form-label-sm">
                     <span title="Última petición a API o descripción actual. Max. 500 caracteres" data-toggle="tooltip" class="label-tooltip" data-html="true">
                         Descripción del producto para enviar a la API
                     </span>
-                    <span id="caracteres_descripcion_api"></span>
+                    <span class="caracteres_descripcion_api" id="caracteres_descripcion_api_${producto.id_product}"></span>
                 </label>
-                <textarea class="form-control" id="textarea_descripcion_api" onkeyup="cuentaCaracteres(this);">${descripcion_api}</textarea>
+                <textarea class="form-control" id="textarea_descripcion_api_${producto.id_product}" onkeyup="cuentaCaracteres(this);">${descripcion_api}</textarea>
                 <br>
             </div>
         </div>        
         <div class="row descripcion">
             <div class="panel clearfix panel_producto">
                 <h3>
-                    <span id="contenido_textarea">
+                    <span id="contenido_textarea_${producto.id_product}">
                         <span title="Contenido de la descripción corta del producto en Prestashop" data-toggle="tooltip" class="label-tooltip" data-html="true">
                             Descripción actual del producto
                         </span>
@@ -1311,7 +1369,7 @@ function muestraProducto(producto) {
                         Shift+B
                     </div>
                 </h3>                
-                <textarea class="form-control area_descripcion" id="textarea_descripcion_actual_producto" rows="9">${producto.descripcion}</textarea>
+                <textarea class="form-control area_descripcion" id="textarea_descripcion_actual_producto_${producto.id_product}" rows="9">${producto.descripcion}</textarea>
                 <div class="btn-group pull-left">
                     <button class="btn btn-default activa_producto" type="button" title="Activar el producto en Prestashop" id="boton_activar_${producto.id_product}" name="boton_activar_${producto.id_product}"  ${disable_activo}>
                         <i class="icon-money"></i> Activar
@@ -1324,6 +1382,7 @@ function muestraProducto(producto) {
                     <button class="btn btn-default genera_descripcion_producto" type="button" title="Generar descripción de producto con API" id="boton_generar_${producto.id_product}" name="boton_generar_${producto.id_product}" ${disable_procesando}>
                         <i class="icon-pencil"></i> Generar
                     </button>   
+                    <input type="hidden" id="redactado_hidden_${producto.id_product}" name="redactado_hidden_${producto.id_product}" value="0">
                 </div> 
             </panel>
         </div>                
@@ -1343,11 +1402,11 @@ function muestraProducto(producto) {
     `;
 
     //llamamos por primera vez a la función que nos cuenta y muestra el número de caracteres de la descripción a enviar a la API
-    cuentaCaracteres(document.querySelector('#textarea_descripcion_api'));
-    cuentaCaracteres(document.querySelector('#input_nombre_api'));
+    cuentaCaracteres(document.querySelector('#textarea_descripcion_api_'+producto.id_product));
+    cuentaCaracteres(document.querySelector('#input_nombre_api_'+producto.id_product));
 
     //queremos que el textarea de la descripción generada se adapte al contenido, de modo que si excede las rows de textarea aumente su altura. Para ello lo cogemos y reseteamos su altura con "auto" y después le asignamos scrollHeight que es la altura de scroll, su altura total. Esto unido a que el panel sticky lateral es de top:109px a bottom:0px con overflow auto, hará que si se supera la medida de la pantalla aparezca un nuevo scroll vertical para el panel
-    const textarea = document.querySelector('#textarea_descripcion_actual_producto');
+    const textarea = document.querySelector('#textarea_descripcion_actual_producto_'+producto.id_product);
     // console.log('height1'+textarea.style.height);
     textarea.style.height = "auto"; // Reset the height to allow content to fit
     // console.log('height2'+textarea.style.height);
@@ -1377,7 +1436,7 @@ function muestraProducto(producto) {
     const boton_negrita = document.querySelector("#boton_negrita");
 
     boton_negrita.addEventListener('click', function(){  
-        getTextoNegrita()
+        getTextoNegrita(producto.id_product)
     }); 
     
     //queremos que si se pulsa la combinación de teclas Shift+B se compruebe si hay algo seleccionado dentro del text area y también se ponga en negrita como al pulsar el botón. El código de evento de la letra B es 66 o keyB. El de Shift es 16, pero está asociado a shiftKey
@@ -1385,7 +1444,7 @@ function muestraProducto(producto) {
         // console.log(event);
         if (event.shiftKey && event.code === 'KeyB') {
             console.log('pulsado shift+B');            
-            getTextoNegrita();
+            getTextoNegrita(producto.id_product);
 
             //para evitar que se escriba la B de Shift+B hacemos event.preventDefault, de modo que el comportamiento por defecto de escribir la letra pulsada se evita, siempre que entremos en la combinación shift+b
             event.preventDefault();
@@ -1396,10 +1455,10 @@ function muestraProducto(producto) {
 
 //función que es llamada al pulsar el boton_negrita y revisa si dentrodel textarea hay alguna selección de texto. Para ello busca selectionStart y selectionEnd dentro del textarea, si estos son diferentes es que hay algo seleccionado.
 //después ponemos el rango seleccionado a 0 de nuevo (es como resetear) para que si pulsamos de nuevo el botón ya no tenga nada seleccionado con setSelectionRange(0, 0) ya que si no si pulsas con algo seleccionado fuera del textarea sigue teniendo "en memoria" la anterior selección
-function getTextoNegrita() {
+function getTextoNegrita(id_product) {
     // console.log('dentro negrita');
 
-    const textarea = document.querySelector('#textarea_descripcion_actual_producto');
+    const textarea = document.querySelector('#textarea_descripcion_actual_producto_'+id_product);
 
     const start = textarea.selectionStart;
     const end = textarea.selectionEnd;
@@ -1429,6 +1488,9 @@ function getTextoNegrita() {
 function activarProducto(id_product) {
     //mostramos spinner
     spinnerOn();
+
+    //sacamos panel procesando
+    showPanelProcesando();
      
     //preparamos la llamada ajax
     var dataObj = {};
@@ -1463,12 +1525,18 @@ function activarProducto(id_product) {
                 //eliminamos spinner
                 spinnerOff();
 
+                //escondemos panel procesando
+                hidePanelProcesando()
+
             }
             else
             {                      
 
                 //eliminamos spinner
                 spinnerOff();
+
+                //escondemos panel procesando
+                hidePanelProcesando()
 
                 showErrorMessage(data.message);
             }
@@ -1483,13 +1551,18 @@ function activarProducto(id_product) {
 
 //función que marca un producto como revisado y al dar por buena la descripción de producto la actualiza en lafrips_product_lang, junto con el nombre
 function revisaDescripcion(id_product) {
-    console.log(document.querySelector("#textarea_descripcion_actual_producto").value);
+    console.log(document.querySelector("#textarea_descripcion_actual_producto_"+id_product).value);
 
-    const descripcion = document.querySelector("#textarea_descripcion_actual_producto").value;
-    const nombre = document.querySelector("#input_nombre_api").value;
+    const descripcion = document.querySelector("#textarea_descripcion_actual_producto_"+id_product).value;
+    const nombre = document.querySelector("#input_nombre_api_"+id_product).value;
+    //sacamos value del input hidden que se pone a 1 si hacemos la petición de descripción a la API
+    const redactado_ahora = document.querySelector("#redactado_hidden_"+id_product).value;
 
     //mostramos spinner
     spinnerOn();
+
+    //sacamos panel procesando
+    showPanelProcesando();
 
     //ponemos el badge de Revisando
     var esta_revisando = `
@@ -1515,6 +1588,7 @@ function revisaDescripcion(id_product) {
     dataObj['id_product'] = id_product;
     dataObj['descripcion'] = descripcion;
     dataObj['nombre'] = nombre;
+    dataObj['redactado_ahora'] = redactado_ahora;
     //el token lo hemos sacado arriba del input hidden
     $.ajax({
         url: 'index.php?controller=AdminRedactorDescripciones' + '&token=' + token + "&action=revisar_descripcion" + '&ajax=1' + '&rand=' + new Date().getTime(),
@@ -1543,20 +1617,27 @@ function revisaDescripcion(id_product) {
                     masColaProducto(new Array(id_product)); 
                 }); 
 
-                //el producto ya está redactado (incluso si no se llamó a la API, revisado cuenta como Redactado) mostramos success
-                document.querySelector("#redactado_"+id_product).innerHTML = `<span class="badge badge-success">Si</span>`;
+                //08/03/2024 Para indicar Redactado obtenemos el value del input hidden redactado_hidden_idproduct, cuyo valor 1 indica que esta descripción se ha generado ahora y no que estemos revisando una que ya estaba en el producto, sea o no de API
+                var mostrar_redactado = "";
+                if (document.querySelector("#redactado_hidden_"+id_product).value == 1) {
+                    //el producto acaba de ser marcado como redactado. mostramos success
+                    document.querySelector("#redactado_"+id_product).innerHTML = `<span class="badge badge-success">Si</span>`;
+
+                    mostrar_redactado = `<span id="redactado_badge" class="badge badge-success" title="Este producto ya ha sido redactado">Redactado</span> 
+                    <br>`;
+                }
+                
                 //el producto ya está revisado (incluso si no se llamó a la API, revisado cuenta como Redactado) mostramos success
                 document.querySelector("#revisado_"+id_product).innerHTML = `<span class="badge badge-success">Si</span>`;
                 //habilitamos el checkbox en caso de no estarlo
                 document.querySelector("#product_checkbox_"+id_product).checked = false;
                 document.querySelector("#product_checkbox_"+id_product).disabled = false;            
                 
-                //el panel de  procesos lo dejamos con Redactado y Revisado
+                //el panel de  procesos lo dejamos con Redactado, según el caso, y Revisado
                 var panel_info_procesos = `
                 <div class="panel panel_producto panel_info_procesos">
-                    <span id="redactado_badge" class="badge badge-success" title="Este producto ya ha sido redactado y revisado">Redactado</span> 
-                    <br>
-                    <span id="revisado_badge" class="badge badge-success" title="Este producto ya ha sido redactado y revisado">Revisado</span>      
+                    ${mostrar_redactado}
+                    <span id="revisado_badge" class="badge badge-success" title="Este producto ya ha sido revisado">Revisado</span>      
                 </div>
                 `;
                 document.querySelector('#info_procesos').innerHTML = panel_info_procesos;          
@@ -1569,6 +1650,9 @@ function revisaDescripcion(id_product) {
         
                 //eliminamos spinner
                 spinnerOff();
+
+                //escondemos panel procesando
+                hidePanelProcesando()
 
             }
             else 
@@ -1589,6 +1673,9 @@ function revisaDescripcion(id_product) {
                 //eliminamos spinner
                 spinnerOff();
 
+                //escondemos panel procesando
+                hidePanelProcesando()
+
                 showErrorMessage(data.message);
             }
 
@@ -1605,10 +1692,10 @@ function generaDescripcion(id_product) {
     console.log(id_product);
 
     //recogemos valores del formulario destinado a la API. Tono recoge el value del select, que es la palabra en inglés como requiere la API. Keywords, si lleva algo, lo guardaremos como venga
-    const nombre = document.querySelector("#input_nombre_api").value;
-    const keywords = document.querySelector("#input_keywords_api").value;
-    const tono = document.querySelector("#select_tono_api").value;
-    const descripcion = document.querySelector("#textarea_descripcion_api").value;
+    const nombre = document.querySelector("#input_nombre_api_"+id_product).value;
+    const keywords = document.querySelector("#input_keywords_api_"+id_product).value;
+    const tono = document.querySelector("#select_tono_api_"+id_product).value;
+    const descripcion = document.querySelector("#textarea_descripcion_api_"+id_product).value;
     
 
     if (descripcion.length > 500) {
@@ -1621,6 +1708,9 @@ function generaDescripcion(id_product) {
 
     //mostramos spinner
     spinnerOn();
+
+    //sacamos panel procesando
+    showPanelProcesando();
 
     //ponemos el badge de Procesando
     var esta_procesando = `
@@ -1664,7 +1754,8 @@ function generaDescripcion(id_product) {
             {                                 
                 console.dir(data);     
                 
-                //si recibimos correctamente la descripción generada desde la API, hay que actualizar los productos, marcando como Redactado, quitar Procesando, y permitiendo que se puedan enviar de nuevo, tanto activando el checkbox como cambiando el botón Cola a Mas cola
+                //si recibimos correctamente la descripción generada desde la API, hay que actualizar los productos, quitar Procesando, y permitiendo que se puedan enviar de nuevo, tanto activando el checkbox como cambiando el botón Cola a Mas cola
+                //08/03/2024 Cambiamos el value del input hidden redactado_hidden_idproduct para indicar que la descripción ha sido generada aquí si pulsamos en revisar. Redactado solo marcamos si pulsamos revisado, ya que si no pulsamos revisado y cerramos o mostramos otro producto, la descripción se pierde
                 // console.log(data.id_producto_cola);
                 document.querySelector("#boton_cola_"+id_product).innerHTML = `
                     <button class="btn btn-default mas_cola_producto" type="button" title="Añadir producto a cola" id="mas_cola_${id_product}" name="${id_product}">
@@ -1690,7 +1781,7 @@ function generaDescripcion(id_product) {
                 //el panel de  procesos lo dejamos con Redactado
                 var panel_info_procesos = `
                 <div class="panel panel_producto panel_info_procesos">
-                    <span id="redactado_badge" class="badge badge-warning" title="Este producto ha sido redactado y se guardará al ser revisado">Redactado a espera de Revisar / guardar</span> 
+                    <span id="redactado_badge" class="badge badge-warning" title="La descripción de este producto ha sido generada y se guardará al ser revisado">Descripción generada a espera de Revisar / guardar</span> 
                     <br>                        
                 </div>
                 `;
@@ -1701,10 +1792,13 @@ function generaDescripcion(id_product) {
                 document.querySelector('#boton_generar_'+id_product).disabled = false;
 
                 //el contenido de la descripción generada lo ponemos en el textarea_descripcion_actual_producto, pero de hecho no está guardado en Prestashop hasta que no se pulse revisado, de modo que si vovlemos cargar el panel del producto aparecerá lo que haya en Prestashop
-                document.querySelector("#textarea_descripcion_actual_producto").value = data.descripcion_api;
+                document.querySelector("#textarea_descripcion_actual_producto_"+id_product).value = data.descripcion_api;
+
+                //08/03/2024 Cambiamos value de input hidden redactado_hidden_idproduct que indica que se acaba de genrar la descripción con la api
+                document.querySelector("#redactado_hidden_"+id_product).value = 1;
 
                 //modificamos el texto sobre el textarea para indicar que no es la descripción actual del producto sino el retorno de la API y hay que revisar (guardar) para que se conserve. El texto se mete dentro del span id contenido_textarea
-                document.querySelector("#contenido_textarea").innerHTML = `
+                document.querySelector("#contenido_textarea_"+id_product).innerHTML = `
                 <span title="Descripción generada por la API para el producto, debes Revisar para guardarla" data-toggle="tooltip" class="label-tooltip" data-html="true">
                     Descripción generada por API - Revisa para guardar
                 </span>
@@ -1715,6 +1809,8 @@ function generaDescripcion(id_product) {
                 //eliminamos spinner
                 spinnerOff();
 
+                //escondemos panel procesando
+                hidePanelProcesando()
             }
             else
             {              
@@ -1734,10 +1830,13 @@ function generaDescripcion(id_product) {
                 showErrorMessage(data.message);
 
                 //Insertamos el mensaje de respuesta de la API, sea el que sea, al comienzo de la descripción del textarea
-                document.querySelector("#textarea_descripcion_actual_producto").value = data.error_message + "<br><br><br>" + document.querySelector("#textarea_descripcion_actual_producto").value;
+                document.querySelector("#textarea_descripcion_actual_producto_"+id_product).value = data.error_message + "<br><br><br>" + document.querySelector("#textarea_descripcion_actual_producto_"+id_product).value;
 
                 //eliminamos spinner
                 spinnerOff();
+
+                //escondemos panel procesando
+                hidePanelProcesando()
             }
 
         },
@@ -1749,7 +1848,7 @@ function generaDescripcion(id_product) {
 }
 
 //cuenta en tiempo real el número de caracteres en Descripción y nombre para enviar a la api
-//es llamada con "this" como argumento, this es el elemento que ha recibido el keyup, de modo que podemos sacar su id como su atributo para saber a qué elelemtno nos referimos
+//es llamada con "this" como argumento, this es el elemento que ha recibido el keyup, de modo que podemos sacar su id como su atributo para saber a qué elemento nos referimos
 function cuentaCaracteres(arg) {
     // var num_caracteres = document.querySelector('#textarea_descripcion_api').value.length;
     var num_caracteres = arg.value.length;
@@ -1758,9 +1857,18 @@ function cuentaCaracteres(arg) {
     var element_id = arg.getAttribute('id');
     // console.log('element_id '+element_id);
 
+    //sacamos el id de producto de element_id buscando la última posición de _ y cortando desde ahí más 1
+    var id_product = element_id.substring(element_id.lastIndexOf("_") + 1);
+
     var numero = "";
 
-    if (element_id == 'textarea_descripcion_api') {
+    //13/03/2024 Al añadir el id_product a los ids de todos los inputs y textareas ya no se puede buscar como 
+    // if (element_id == 'textarea_descripcion_api') { o if (element_id == 'input_nombre_api') {
+    // usamos función de javascript str.startsWith() AL FINAL HE TENIDO QUE SACAR EL id_product de element_id
+    //if (element_id.startsWith('textarea_descripcion_api')) {
+    //if (element_id.startsWith('input_nombre_api')) {
+
+    if (element_id == 'textarea_descripcion_api_'+id_product) {
         if (num_caracteres < 400) {
             numero = `<span class="badge badge-success">${num_caracteres}</span>`;
         } else if (num_caracteres > 500) {
@@ -1769,10 +1877,11 @@ function cuentaCaracteres(arg) {
             numero = `<span class="badge badge-warning">${num_caracteres}</span>`;
         }
     
-        document.querySelector('#caracteres_descripcion_api').innerHTML =  numero;
+        document.querySelector('#caracteres_descripcion_api_'+id_product).innerHTML =  numero;
     }
 
-    if (element_id == 'input_nombre_api') {
+    
+    if (element_id == 'input_nombre_api_'+id_product) {
         if (num_caracteres < 42) {
             numero = `<span class="badge badge-success">${num_caracteres}</span>`;
         } else if (num_caracteres > 50) {
@@ -1781,7 +1890,7 @@ function cuentaCaracteres(arg) {
             numero = `<span class="badge badge-warning">${num_caracteres}</span>`;
         }
     
-        document.querySelector('#caracteres_nombre_api').innerHTML = numero;
+        document.querySelector('#caracteres_nombre_api_'+id_product).innerHTML = numero;
     }    
 }
 
@@ -1829,3 +1938,12 @@ function spinnerOff() {
     }
 }
 
+//función que muestra el div oculto para impedir al usuario tocar nada mientras en proceso
+function showPanelProcesando() {
+    document.getElementById("panel_procesando").style.display = "block";
+}
+
+//función que oculta el div oculto para impedir al usuario tocar nada mientras en proceso
+function hidePanelProcesando() {
+    document.getElementById("panel_procesando").style.display = "none";
+}

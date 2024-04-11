@@ -11,7 +11,9 @@ if (!defined('_PS_VERSION_'))
 
 class AdminRedactorDescripcionesController extends ModuleAdminController {
     
-    public function __construct() {       
+    public function __construct() {    
+        //situamos Redactame.php para acceder a sus funciones
+        require_once (dirname(__FILE__) .'/../../classes/Redactame.php');   
 
         $this->lang = false;
         $this->bootstrap = true;        
@@ -35,7 +37,7 @@ class AdminRedactorDescripcionesController extends ModuleAdminController {
      */
     public function setMedia(){
         parent::setMedia();
-        $this->addJs($this->module->getPathUri().'views/js/back_redactor.js');
+        $this->addJs($this->module->getPathUri().'views/js/back_redactor.js?v=1.12');
         //añadimos la dirección para el css
         $this->addCss($this->module->getPathUri().'views/css/back_redactor.css');
     }
@@ -139,33 +141,7 @@ class AdminRedactorDescripcionesController extends ModuleAdminController {
             die(Tools::jsonEncode(array('message'=>'Se produjo un error al cargar las select de productos')));
         }              
     }
-
-    //función que devuelve al front los proveedores existentes de productos para formar el SELECT en el controlador
-    public function ajaxProcessObtenerProveedores() {       
-
-        $info_proveedores = array();
-
-        foreach ($proveedores_dropshipping AS $id_supplier) {
-            $proveedor = array();
-            $proveedor['id_supplier'] = $id_supplier;
-            $proveedor['name'] = Supplier::getNameById($id_supplier);
-
-            $info_proveedores[] = $proveedor;
-        }
-
-        if ($info_proveedores) {
-            //ordenamos el array por el campo name
-            $columnas = array_column($info_proveedores, 'name');
-            array_multisort($columnas, SORT_ASC, $info_proveedores);
-
-            //devolvemos la lista 
-            die(Tools::jsonEncode(array('message'=>'Info de proveedores obtenida correctamente', 'info_proveedores' => $info_proveedores)));
-        } else { 
-            //error al sacar los proveedores           
-            die(Tools::jsonEncode(array('error'=> true, 'message'=>'Error obteniendo la información de los proveedores')));
-        }   
-    }
-
+  
     /*
     * Función que busca los productos para procesar descripciones
     *
@@ -526,7 +502,7 @@ class AdminRedactorDescripcionesController extends ModuleAdminController {
 
     //función que recibe un id_product y devuelve toda la información concerniente a las descripciones, además de foto, referencia etc, para mostrar en el recuadro lateral de la tabla. 
     //Tendrá un input descripción que contendrá la descripción actual del producto. Otro input que contendrá la info que se va a pasar por defecto a la API de redacta.me. Esta info será el contenido de la descripción si el producto no figura como redactado = 1, ya que si ha sido redactado, la descripción será o bien la que devolvió la api o algo similar. Si es así, en el input se pondrá el contenido que se utilizó para que la API generara la descripción y que estará guardado en api_json en la tabla redactor_descripcion. Si no ha sido redactado, es posible que el producto ya tenga una descripción completa, en cuyo caso mostraremos un mensaje de aviso o algo así, si esta tiene más de 500 caracteres que es el máximo que se puede pasar a la api.
-    //al recibir en esta función primero hay que comprobar que la tabla lafrips_redactor_descripcion ya tenga una entrada para el producto cuyyo botón se ha pulsado, para insertarla si no    
+    //al recibir en esta función primero hay que comprobar que la tabla lafrips_redactor_descripcion ya tenga una entrada para el producto cuyyo botón se ha pulsado, para insertarla si es que no    
     public function ajaxProcessMostrarProducto() {
         $id_product = Tools::getValue('id_product',0);               
 
@@ -629,11 +605,13 @@ class AdminRedactorDescripcionesController extends ModuleAdminController {
         return true;
     }
 
-    //función que recibe un id_product y una descripción y nombre y actualiza product_name y description_short del producto para id_lang 1. También marcará Revisado a 1, En cola a 0, etc
+    //función que recibe un id_product y una descripción y nombre y llama a Redactame.php para actualizar product_name y description_short del producto para id_lang 1. También marcará Revisado a 1, En cola a 0, etc desde allí.
     public function ajaxProcessRevisarDescripcion() {
-        $id_product = Tools::getValue('id_product',0);  
-        $nombre = Tools::getValue('nombre',0);  
-        $descripcion = Tools::getValue('descripcion',0);               
+        $id_product = Tools::getValue('id_product', false);  
+        $nombre = Tools::getValue('nombre', false);  
+        $descripcion = Tools::getValue('descripcion', false);   
+        //08/03/2024 Recogemos valor de input hidden id redactado_hidden_id_product que indica si la descripción que llega se acaba de generar en el front, o sino sería o bien generada en cola o lo que hubiera en el producto de prestashop
+        $redactado = (int) Tools::getValue('redactado_ahora', false);            
 
         if (empty($id_product) || empty($nombre) || empty($descripcion)) {
             die(Tools::jsonEncode(array('error'=> true, 'message'=>'Error con la información del producto a revisar')));
@@ -643,34 +621,22 @@ class AdminRedactorDescripcionesController extends ModuleAdminController {
             die(Tools::jsonEncode(array('error'=> true, 'message'=>'Error, los campos a guardar contienen elementos inválidos')));
         }
 
-        //instanciamos el producto para actualizar nombre y descripción, solo para id_lang 1
-        $product = new Product($id_product);
-        // para nombre y descripciones cuando solo queremos afectar a un lenguaje
-        $product->name[1] = $nombre;
-        $product->description_short[1] = $descripcion;
-        if ($product->update()) {
-            //marcamos como redactado y revisado, quitamos de cola
-            $id_employee = Context::getContext()->employee->id;
+        if (($retorno_actualiza_producto = Redactame::actualizaProducto($id_product, $descripcion, $nombre)) === true) {
 
-            $sql_update_producto = "UPDATE lafrips_redactor_descripcion
-            SET
-            en_cola = 0,
-            redactado = 1, 
-            revisado = 1,
-            error = 0,
-            date_revisado = NOW(),
-            id_employee_revisado = $id_employee,
-            date_upd = NOW()
-            WHERE id_product = $id_product";            
+            //marcar revisado. Para marcar redactado, la descripción debe haber sido solicitada a la API desde el front también
+            if ($redactado) {
+                Redactame::updateTablaRedactorRedactado(1, $id_product);        
+            }
 
-            Db::getInstance()->Execute($sql_update_producto);
+            Redactame::updateTablaRedactorRevisado($id_product);            
 
             die(Tools::jsonEncode(array(
                 'message'=>'Producto marcado como revisado, descripción y nombre actualizados',
             )));
 
         } else {
-            die(Tools::jsonEncode(array('error'=> true, 'message'=>'Error actualizando los campos a guardar')));
+
+            die(Tools::jsonEncode(array('error'=> true, 'message'=>'Error actualizando los campos a guardar - '.$retorno_actualiza_producto)));
         }        
     }
 
@@ -696,26 +662,14 @@ class AdminRedactorDescripcionesController extends ModuleAdminController {
             "description" => $descripcion,
             "keywords" => $keywords,
             "tone" => $tono
-        );
-
-        //marcamos la tabla como procesando
-        if (!$id_employee = Context::getContext()->employee->id) {
-            $id_employee = 44;
-        }
-        //insertamos fecha y empleado de redactar en lafrips_redactor_descripcion
-        $sql_redactando = "UPDATE lafrips_redactor_descripcion
-        SET                
-        procesando = 1,
-        inicio_proceso = NOW(),
-        id_employee_redactado = $id_employee,                            
-        date_upd = NOW()
-        WHERE id_product = $id_product";
-
-        Db::getInstance()->executeS($sql_redactando); 
+        );        
 
         $resultado_api = Redactame::apiRedactameSolicitudDescripcion($info_api);
 
         if ($resultado_api["result"] == 1) {
+            //si desde el front hemos solicitado una descripción a la API, reseteamos redactado, y de paso se pondrá procesando a 0 también. Después tendrán que pulsar sobre revisado para que veulva a estar como redactado.
+            Redactame::updateTablaRedactorRedactado(0, $id_product);  
+
             die(Tools::jsonEncode(array(
                 'message'=>'Descripción generada correctamente, revisala antes de salir para guardarla',
                 'descripcion_api' => $resultado_api["message"]
@@ -742,7 +696,7 @@ class AdminRedactorDescripcionesController extends ModuleAdminController {
         $product->active = true;
         
         if ($product->update()) {
-            //lanzamos esta función para que se "repase" el stock, de modo que el hook de importaproveedor mirará si este producto está en lafrips_import_catalogos con disponibilidad de stock y lo pondrá en permitir pedidos si no tiene stock
+            //lanzamos esta función para que se "repase" el stock, de modo que el hook de importaproveedor mirará si este producto está en frik_import_catalogos con disponibilidad de stock y lo pondrá en permitir pedidos si no tiene stock, pero a comienzos de 2024 ya solo tenemos automatizados pocos proveedores de import_catalogos (Heo, Abysse y SD, reduciendo)
             StockAvailable::synchronize($id_product);
 
             die(Tools::jsonEncode(array(
