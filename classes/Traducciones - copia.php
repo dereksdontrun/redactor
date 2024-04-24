@@ -7,21 +7,12 @@ require_once(dirname(__FILE__).'/../../../init.php');
 //https://lafrikileria.com/modules/redactor/classes/Traducciones.php
 //https://lafrikileria.com/test/modules/redactor/classes/Traducciones.php
 
-//ATENCIÓN OJO OJETE
-//llamamos al proceso vía cron con esta url que llama a otro proceso que hará una petición cURL de este, para evitar la desconexión que se produce a veces
-// https://lafrikileria.com/modules/redactor/classes/LlamaColaTraduccionesCurl.php
-
 //27/03/2024 Este proceso puede ser llamado por una tarea cron con parámetros GET $cola, $id_product e $id_lang, de modo que si viene $cola como true procederá a traducir una cantidad de productos que seleccionará en función de la disponibilidad de venta etc, o puede ser llamado directamente con el id_product del producto a traducir. Además puede llevar GET id_lang que indicará el idioma a traducir. Si hay id_product e id_lang se traducirá solo ese idioma, si hay id_product pero no id_lang se traducirán todos los idiomas e igual para proceso "cola"
 
 // TODO MODIFICAR para indicar el campo a traducir como parámetro al llamar a la clase _construct($cola = false, $id_lang = false, $id_product = false, $campo = null)
 
 // los parámetros GET no son int así que habrá que hacer cast
-// https://lafrikileria.com/modules/redactor/classes/Traducciones.php?cola=true..
-// https://lafrikileria.com/test/modules/redactor/classes/Traducciones.php?id_product=55724&id_lang=11
-
-//16/04/2024 Añadimos un proceso inicial que buscará productos sin traducir, para uno o varios idiomas, y que estén disponibles a la venta
-
-//22/04/2024 Vamos a añdir la posibilidad de ignorar ciertas palabras o grupos de palabras para que Deepl no las traduzca. Para ello usamos el pará,etro de la API "ignore_tags" con x. Eso quiere decir que lo que vaya envuelto en etiqeutas html <x></x> no será traducido. Para ello utilizo el método del módulo, que es pasar el texto por una función antes de enviarlo a Deepl. Esta función buscará en BD las palabras que queremos ignorar y si las encuentra en el texto les añadirá las etiqeutas. Después, al recibir la traducción pasará el texto recibido por otra función que retira las etiquetas.
+// https://lafrikileria.com/modules/redactor/classes/Traducciones.php?cola=true
 
 //si vienen como parámetros id_product y cola es un error
 if (isset($_GET['id_product']) && isset($_GET['cola'])) { 
@@ -86,10 +77,7 @@ class Traducciones
     18 - PT
     19 - BE, sería FR, pero no poner
     */
-    public $langs = array(12,18);
-
-    //array que indica los idiomas a los que asignar a la cola cuando busquemos productos a la venta sin traducir. Lo diferenciamos del otro $langs porque ese indica que productos hay que traducir, a que idiomas, y este indica qué idiomas meter a cola de los productos, de modo que podríamos estar traduciendo solo el inglés pero ir añadiendo y preparando los productos a otro idioma. Por ejemplo, en este momento no hay productos traducidos del inglés, si pongo a traducir los de inglés y francés que entren en cola y pongo a meter en cola los de id_lang de inglés meterá varios miles de golpe. Con esto puedo meter a cola manualmente los de inglés en bloques mientras los nuevos van entrando a francés solamente al tenerlo en esta variable
-    public $langs_cola = array(12,18);
+    public $langs = array(12);
 
     //array que contiene los campos a traducir. El proceso de traducción pasará por cada campo para ir llamando a la API pidiendo traducción. Por ahora meto array('name','description_short','description'); LO HACEMOS sacando por producto e id_lang de la tabla lafrips_product_langs_traducciones los que aún no estén traducidos
     public $campos = array();
@@ -112,14 +100,11 @@ class Traducciones
 
     public $deepl_endpoint = 'https://api.deepl.com/v2/';
 
-    //los caracteres que se han consumido durante este proceso, resultado de restar $response_decode->character_count al comienzo del proceso al mismo valor al final del proceso
-    public $caracteres_consumidos_proceso;
+    public $caracteres_consumidos_inicio;
 
-    //iniciamos con null para asegurar que en la primera llamada a api usage irá vacío. Guardaremos $response_decode->character_count. Son los caracteres que se han consumido en total de la cuenta de Deepl en el período de consumo actual (mensual? semanal? por pago?)
-    public $caracteres_consumidos_cuenta_deepl = null;    
+    public $caracteres_consumidos_final;
 
-    //el número de caracteres en total disponibles (usados o no) en la cuenta de Deepl en el momento
-    public $caracteres_totales_cuenta_deepl;
+    public $caracteres_totales_disponibles;
     
     //subirá una unidad por cada producto traducido a un idioma
     public $contador_productos = 0;
@@ -139,24 +124,9 @@ class Traducciones
     public $log_file = _PS_ROOT_DIR_.'/modules/redactor/log/traducciones.txt';
     public $error = 0;
     public $mensajes_error = array();
-
-    //envoltorio para palabras que no queremos traducir, etiquetas html.
-    public $excluded_words_wrappers = array('<x>', '</x>');
-
-    //variable donde se alamcenarán las palabras para no traducir. Se almacenan en la variable del propio módulo de traducciones dgcontenttranslation, en tabla lafrips_configuration, name dingedi_excluded. TODO La idea es crear otra "nuestra" en la tabla para ir almacenando nuevas palabras 
-    public $excluded_words = array();
     
     public function __construct($cola = false, $id_lang = false, $id_product = false)
     {	                
-        //15/04/2024 lo primero que vamos a hacer es asegurarnos de que tenemos carácteres disponibles para seguir traduciendo. Para ello llamaremos a apiusage, y guardaremos los valores en sus variables. Si caracteres consumidos es igual que caracteres disponibles no continuaremos (o si quedan menos de 128 que es lo máximo para un nombre de producto). Además al llamar a la api para traducir comprobaremos el código http, que debe ser 200. El código que indica Quota exceded es 456.
-        //obtenemos la key de la API de Deepl que tenemos almacenada en redactor/secrets/api_deepl.json. Lo hacemos aquí para no sacarla por cada traducción si son varias
-        $this->api_key = $this->getApiKey();
-
-        //pedimos el uso de caracteres a la api para dejar log de los iniciales y los finales
-        if (!$this->apiUsage()) {
-            exit;
-        }   
-        
         if ((!$cola && !$id_product) || ($cola && $id_product)) {
             // echo '<br>no cola ni id_product o ambos';
             //no vienen los parámetros cola ni id_product o vienen ambos, salimos
@@ -168,9 +138,6 @@ class Traducciones
 
         if ($cola) {
             $this->cola = true;
-
-            //16/04/2024 Añadimos un proceso inicial que buscará productos sin traducir, y que estén disponibles a la venta, para uno o varios idiomas, que indicaremos en la variable $this->langs_cola
-            $this->checkCola();
         }
 
         if ($id_lang) {
@@ -200,7 +167,10 @@ class Traducciones
             }           
             
         }  
-            
+
+        //obtenemos la key de la API de Deepl que tenemos almacenada en redactor/secrets/api_deepl.json. Lo hacemos aquí para no sacarla por cada traducción si son varias
+        $this->api_key = $this->getApiKey();
+        
         //obtenemos de la API el uso que llevamos de caractéres y lo que nos queda hasta el límite
         //Por ahora no lo uso dado que la propia API se supone que nos avisará cuando no quede crédito de caractéres. OJO si lo activo porque aquí aún no está setLog() activo y quedará raro en log
         // if (!$this->apiUsage()) {
@@ -242,12 +212,18 @@ class Traducciones
         file_put_contents($this->log_file, date('Y-m-d H:i:s').' - Total campos traducidos: '.$this->contador_campos.PHP_EOL, FILE_APPEND);
         file_put_contents($this->log_file, date('Y-m-d H:i:s').' - Tiempo total empleado (segundos): '.(time() - $this->inicio).PHP_EOL, FILE_APPEND); 
 
-        //pedimos el uso de caracteres a la api para dejar log de los iniciales y los finales. En este punto final no abandonamos el proceso si no hay respuesta
-        $this->apiUsage();            
+        //pedimos el uso de caracteres a la api para dejar log de los iniciales y los finales
+        if (!$api_usage = $this->apiUsage()) {
+            $this->caracteres_consumidos_final = '-no disponible-';
+            $caracteres_disponibles = '-no disponible-';
+        } else {
+            $this->caracteres_consumidos_final = $api_usage[0];
+            $caracteres_disponibles = $api_usage[1] - $this->caracteres_consumidos_final;
+        }       
 
-        file_put_contents($this->log_file, date('Y-m-d H:i:s').' - Caractéres consumidos de cuenta en final: '.$this->caracteres_consumidos_cuenta_deepl.PHP_EOL, FILE_APPEND);
-        file_put_contents($this->log_file, date('Y-m-d H:i:s').' - Caractéres consumidos durante proceso: '.$this->caracteres_consumidos_proceso.PHP_EOL, FILE_APPEND);
-        file_put_contents($this->log_file, date('Y-m-d H:i:s').' - Caractéres disponibles en cuenta: '.($this->caracteres_totales_cuenta_deepl - $this->caracteres_consumidos_cuenta_deepl).PHP_EOL, FILE_APPEND);
+        file_put_contents($this->log_file, date('Y-m-d H:i:s').' - Caractéres consumidos en final: '.$this->caracteres_consumidos_final.PHP_EOL, FILE_APPEND);
+        file_put_contents($this->log_file, date('Y-m-d H:i:s').' - Caractéres consumidos durante proceso: '.($this->caracteres_consumidos_final - $this->caracteres_consumidos_inicio).PHP_EOL, FILE_APPEND);
+        file_put_contents($this->log_file, date('Y-m-d H:i:s').' - Caractéres disponibles: '.$caracteres_disponibles.PHP_EOL, FILE_APPEND);
 
         if ($this->error) {
             file_put_contents($this->log_file, date('Y-m-d H:i:s').' - PROCESO FINALIZADO CON ERRORES'.PHP_EOL, FILE_APPEND);
@@ -265,9 +241,6 @@ class Traducciones
         $this->id_lang = null;
 
         $this->lang_iso = null;
-
-        //22/04/2024 Obtenemos las palabras a NO traducir. Por ahora almacenadas en la variable de lafrips_configuration del módulo de traducciones, 
-        $this->excluded_words = array_filter(explode(',', Configuration::get('dingedi_excluded')));
 
         foreach ($this->products AS $producto) {
             $this->id_product = $producto['id_product'];
@@ -417,13 +390,10 @@ class Traducciones
 
     //función que llama a la API de Deepl y pide y alamacena la traducción
     public function traduceTexto() {
-        //preparamos los parámetros POST. target_lang es el ISO del idioma destino, source_lang es el ISO del idioma original del texto, en este caso ES de Español, probablemente no sea necesario. preserve_formating, ignore_tags y tag_handling sería lo que nos permite conservar los tags html, para negritas etc, aunque ahora no estoy seguro de que conlleva cada una.  
-        
-        //22/04/2024 Procesamos el texto para etiqeutar las palabras que no queremos traducir
-        $text = $this->excludeWords($this->texto_original, true);
-        
+        //preparamos los parámetros POST. target_lang es el ISO del idioma destino, source_lang es el ISO del idioma original del texto, en este caso ES de Español, probablemente no sea necesario. preserve_formating, ignore_tags y tag_handling sería lo que nos permite conservar los tags html, para negritas etc, aunque ahora no estoy seguro de que conlleva cada una.        
+
         $array = array(
-            "text" => $text,            
+            "text" => $this->texto_original,            
             "target_lang" => strtoupper($this->lang_iso),
             "source_lang" => "ES",
             "preserve_formating" => 1,
@@ -488,35 +458,18 @@ class Traducciones
             // $connect_time = $curl_info['connect_time'];
             // $total_time = $curl_info['total_time'];
 
-            $http_code = (int)curl_getinfo($curl, CURLINFO_HTTP_CODE); 
-
             curl_close($curl);
-
-            //pasamos el JSON de respuesta a un objeto PHP. 
-            $response_decode = json_decode($response);             
-
-            if ($http_code != 200) {
-                //el código http no es 200 OK, aunque no tenga por que ser un error fatal, entendemos que la respuesta tiene algún problema. En principio debería devolver un mensaje
-                file_put_contents($this->log_file, date('Y-m-d H:i:s').' - Atención, la respuesta de la API a petición de traducción no es correcta - La API devolvió un mensaje a la petición de traducción - Campo: '.$this->campo.' - id_product: '.$this->id_product.' - id_lang: '.$this->id_lang.PHP_EOL, FILE_APPEND);
-                file_put_contents($this->log_file, date('Y-m-d H:i:s').' - Http Response Code = '.$http_code.PHP_EOL, FILE_APPEND); 
-                file_put_contents($this->log_file, date('Y-m-d H:i:s').' - API Message: '.$response_decode->message.PHP_EOL, FILE_APPEND); 
-
-                $this->error = 1;
-                
-                $this->mensajes_error[] = ' - Atención, la respuesta de la API a petición de traducción no es correcta - La API devolvió un mensaje a la petición de traducción - Campo: '.$this->campo.' - id_product: '.$this->id_product.' - id_lang: '.$this->id_lang; 
-                $this->mensajes_error[] = ' - Http Response Code = '.$http_code;
-                $this->mensajes_error[] = ' - API Message: '.$response_decode->message;
-
-                $this->setError('Error API, Mensaje: '.$response_decode->message);
-
-                return false;
-            }
             
             // echo '<pre>';
             // print_r($response);
             // echo '</pre>';
 
-            //a 02/04/2024 si la API devuelve correctamente la traducción sé que devuelve un json con un elemento translations, que contiene un array con otros dos, detected_source_langauage, que será el ISO del idioma detectado del texto original, y text, que será la traducción obtenida. Si en lugar de "translations" devuelve "message" suele ser un error, probablemente el http code no sea 200 y no lleguemos hasta aquí, pero por si acaso, lo devolvemos
+            //pasamos el JSON de respuesta a un objeto PHP. 
+            $response_decode = json_decode($response); 
+
+            // print_r($response_decode);
+
+            //a 02/04/2024 si la API devuelve correctamente la traducción sé que devuelve un json con un elemento translations, que contiene un array con otros dos, detected_source_langauage, que será el ISO del idioma detectado del texto original, y text, que será la traducción obtenida. Si en lugar de "translations" devuelve "message" suele ser un error, lo devolvemos
             if ($response_decode->message) {
                 file_put_contents($this->log_file, date('Y-m-d H:i:s').' - Atención, la API devolvió un mensaje a la petición de traducción - Campo: '.$this->campo.' - id_product: '.$this->id_product.' - id_lang: '.$this->id_lang.PHP_EOL, FILE_APPEND); 
                 file_put_contents($this->log_file, date('Y-m-d H:i:s').' - Mensaje: '.$response_decode->message.PHP_EOL, FILE_APPEND);
@@ -533,9 +486,7 @@ class Traducciones
             } else if ($response_decode->translations) {
                 //recordemos que "translations" sería un array, en este caso contiene otro objeto en su primera posición, de modo que sacamos la propiedad text del objeto en 0 del array translations, del objeto response_decode. Seguro que se puede sacar directamente...
                 //por ahora ignoramos $response_decode->translations[0]->detected_source_language
-
-                //22/04/2024 Procesamos la respuesta para retirar las etiquetas de NO traducir antes de devolver la traducción        
-                return $this->unexcludeWords($response_decode->translations[0]->text);
+                return $response_decode->translations[0]->text;
             }
 
         } else {
@@ -742,43 +693,6 @@ class Traducciones
         }
     }
 
-    //función que busca los productos que estando disponibles a la venta no tienen marcado completo en la tabla de traducciones, para los id_lang de $this->langs_cola y los encola para dichos id_lang
-    public function checkCola() {
-        $sql_update_cola = "UPDATE lafrips_product_langs_traducciones plt
-        JOIN lafrips_product pro ON pro.id_product = plt.id_product
-        SET
-        plt.en_cola = 1, 
-        plt.id_employee_metido_cola = 44,
-        plt.date_metido_cola = NOW()
-        WHERE plt.completo = 0
-        AND plt.en_cola = 0
-        AND pro.active = 1
-        AND plt.error = 0
-        AND pro.visibility = 'both'
-        AND plt.id_lang IN (".implode(",", $this->langs_cola).")";
-
-        $encolados = Db::getInstance()->execute($sql_update_cola);        
-
-        if ($encolados !== false) {
-            //Db::getInstance()->execute(update) devuelve 1 o false (true or false) si ha funcionado el update o no. Con numRows sabemos a cauntas líneas ha afectado la última sql, si es 0 es que no había productos
-            $affected_rows = Db::getInstance()->numRows();
-            if ($affected_rows > 0) {
-                file_put_contents($this->log_file, date('Y-m-d H:i:s').' --------------------------------------------------'.PHP_EOL, FILE_APPEND);
-                file_put_contents($this->log_file, date('Y-m-d H:i:s').' - Añadidos '.$affected_rows.' producto-idioma a cola de traducción, para id_lang/s '.implode(",", $this->langs_cola).PHP_EOL, FILE_APPEND); 
-            }
-            
-        } else {
-            file_put_contents($this->log_file, date('Y-m-d H:i:s').' - Error en update para añadir productos a cola para id_lang/s '.implode(",", $this->langs_cola).PHP_EOL, FILE_APPEND); 
-
-            $this->error = 1;
-        
-            $this->mensajes_error[] = ' - Error en update para añadir productos a cola para id_lang/s '.implode(",", $this->langs_cola);
-        }   
-
-        return;
-
-    }
-
     public function getApiKey() {
         //Obtenemos la key leyendo el archivo api_deepl.json donde hemos almacenado la contraseña para la API de Deepl
         $secrets_json = file_get_contents(dirname(__FILE__).'/../secrets/api_deepl.json');
@@ -845,76 +759,47 @@ class Traducciones
             // $connect_time = $curl_info['connect_time'];
             // $total_time = $curl_info['total_time'];
 
-            $http_code = (int)curl_getinfo($curl, CURLINFO_HTTP_CODE); 
-
             curl_close($curl);
-
-            //pasamos el JSON de respuesta a un objeto PHP. 
-            $response_decode = json_decode($response);             
-
-            if ($http_code != 200) {
-                //el código http no es 200 OK, aunque no tenga por que ser un error fatal, entendemos que la respuesta tiene algún problema. En principio debería devolver un mensaje
-                file_put_contents($this->log_file, date('Y-m-d H:i:s').' - Error, la respuesta de la API a petición de saldo no es correcta'.PHP_EOL, FILE_APPEND); 
-                file_put_contents($this->log_file, date('Y-m-d H:i:s').' - Http Response Code = '.$http_code.PHP_EOL, FILE_APPEND); 
-                file_put_contents($this->log_file, date('Y-m-d H:i:s').' - API Message: '.$response_decode->message.PHP_EOL, FILE_APPEND); 
-
-                $this->error = 1;
-                
-                $this->mensajes_error[] = ' - Error, la respuesta de la API a petición de saldo no es correcta';
-                $this->mensajes_error[] = ' - Http Response Code = '.$http_code;
-                $this->mensajes_error[] = ' - API Message: '.$response_decode->message;
-
-                return false;
-            }
             
             // echo '<pre>';
             // print_r($response);
             // echo '</pre>';
 
+            //pasamos el JSON de respuesta a un objeto PHP. 
+            $response_decode = json_decode($response); 
+
+            // print_r($response_decode);
+
             //a 03/04/2024 si la API devuelve correctamente la petición sería un json con dos parámetros, character_count y character_limit
             if ($response_decode->character_count && $response_decode->character_limit) {
-                // file_put_contents($this->log_file, date('Y-m-d H:i:s').' - API usage: character_count = '.$response_decode->character_count.' - character_limit = '.$response_decode->character_limit.PHP_EOL, FILE_APPEND);                
+                // file_put_contents($this->log_file, date('Y-m-d H:i:s').' - API usage: character_count = '.$response_decode->character_count.' - character_limit = '.$response_decode->character_limit.PHP_EOL, FILE_APPEND);
 
-                //si $this->caracteres_consumidos contiene algo quiere decir que se llenó en la primera llamada a apiUsage() y ahora estamops en la segunda, al terminar el proceso
-                if ($this->caracteres_consumidos_cuenta_deepl) {
-                    //sacamos los caracteres consumidos en el proceso actual restando los iniciales a los actuales
-                    $this->caracteres_consumidos_proceso = $response_decode->character_count - $this->caracteres_consumidos_cuenta_deepl;
+                //devolvemos array con ambos valores
+                return array($response_decode->character_count, $response_decode->character_limit);
+                
+                // de moemnto no limitamos por uso de caracteres, comento esto
+                /*
+                 
 
-                    //hace las veces de caracteres consumidos al final del proceso
-                    $this->caracteres_consumidos_cuenta_deepl = $response_decode->character_count;
-
-                    $this->caracteres_totales_cuenta_deepl = $response_decode->character_limit;
+                //establecemos un límite para continuar dependiendo de los caractéres que nos quedan. Si estamos procesando un solo producto dejamos 8000 (cogido como ejemplo un producto con descripción larga y tres idiomas) y si es proceso de cola 100000
+                if ($this->cola) {
+                    $margen = 100000;
                 } else {
-                    //hace las veces de caracteres consumidos al inicio del proceso
-                    $this->caracteres_consumidos_cuenta_deepl = $response_decode->character_count;
+                    $margen = 8000;
+                }
 
-                    $this->caracteres_totales_cuenta_deepl = $response_decode->character_limit;
+                if (($response_decode->character_limit - $response_decode->character_count) < $margen) {
+                    file_put_contents($this->log_file, date('Y-m-d H:i:s').' - Atención, a punto de alcanzar límite de uso de API. Proceso interrumpido. Margen fijado en '.$margen.' - Caractéres disponibles restantes = '.($response_decode->character_limit - $response_decode->character_count).PHP_EOL, FILE_APPEND); 
 
-                    //Estamos al inicio del proceso, si la diferencia entre los caracteres consumidos de la cuenta y los totales de la cuenta no es superior a 128 (name) salimos del proceso. Comprobaremos la hora y unicamente enviaremos email de aviso si estamos entre el minuto 10 y el minuto 20 de la hora
-                    if (($this->caracteres_totales_cuenta_deepl - $this->caracteres_consumidos_cuenta_deepl) <= 128) {                       
+                    $this->error = 1;
+            
+                    $this->mensajes_error[] = ' - Atención, a punto de alcanzar límite de uso de API. Proceso interrumpido. Margen fijado en '.$margen.' - Caractéres disponibles restantes = '.($response_decode->character_limit - $response_decode->character_count);
 
-                        $this->error = 1;
-                        
-                        $this->mensajes_error[] = ' - Error, agotado saldo de caracteres de cuenta Deepl';
-                        $this->mensajes_error[] = ' - Caracteres totales cuenta: '.$this->caracteres_totales_cuenta_deepl;
-                        $this->mensajes_error[] = ' - Caracteres consumidos cuenta: '.$this->caracteres_consumidos_cuenta_deepl;
-
-                        if ((date("i") > '10') && (date("i") < '20')) {                             
-                            file_put_contents($this->log_file, date('Y-m-d H:i:s').' --------------------------------------------------'.PHP_EOL, FILE_APPEND);
-                            file_put_contents($this->log_file, date('Y-m-d H:i:s').' --------------------------------------------------'.PHP_EOL, FILE_APPEND);
-                            file_put_contents($this->log_file, date('Y-m-d H:i:s').' - Error, agotado saldo de caracteres de cuenta Deepl'.PHP_EOL, FILE_APPEND);
-                            file_put_contents($this->log_file, date('Y-m-d H:i:s').' - Caracteres totales cuenta: '.$this->caracteres_totales_cuenta_deepl.PHP_EOL, FILE_APPEND);
-                            file_put_contents($this->log_file, date('Y-m-d H:i:s').' - Caracteres consumidos cuenta: '.$this->caracteres_consumidos_cuenta_deepl.PHP_EOL, FILE_APPEND); 
-
-                            //mientras funcione el proceso sin saldo enviamos un email por hora
-                            $this->enviaEmail();
-                        }
-
-                        return false;
-                    }
+                    return false;
                 }                
-
-                return true;     
+                
+                return true;
+                */
 
             } else {
                 file_put_contents($this->log_file, date('Y-m-d H:i:s').' - Error, la petición de uso de caractéres a la API no ha devuelto los parámetros character_count y character_limit'.PHP_EOL, FILE_APPEND); 
@@ -1027,68 +912,6 @@ class Traducciones
         return (bool)Db::getInstance()->getValue("SELECT COUNT(*) FROM lafrips_lang WHERE id_lang = ".$this->id_lang);
     }
 
-    //22/04/2024 Función que prepara el texto añadiendo etiquetas html <x></x> a las palabras que no queremos traducir. Sacada del módulo dingedi dgcontenttranslation.
-    //el tercer parámetro se podría utilizar en casos manuales, de momento lo dejamos como está
-    public function excludeWords($text, $replace, $excludedWords = null)
-    {
-        $excluded = $this->excluded_words;
-
-        //enc aso de recibir más palabras para no traducir en los parámetros de la función, se unen al array de palabras almacenado en lafrips_configuration
-        if (is_array($excludedWords)) {
-            $excluded = array_merge($excluded, $excludedWords);
-        }
-
-        if (empty($excluded)) {
-            return $text;
-        }
-
-        if ($replace === true) {
-            usort($excluded, function ($a, $b) {
-                return strlen($a) < strlen($b);
-            });
-
-            $match = $this->excluded_words_wrappers[0] . "$0" . $this->excluded_words_wrappers[1];
-
-            $groups = array_chunk($excluded, 150);
-
-            foreach ($groups as $group) {
-                $group = array_map(function ($i) {
-                    $i = preg_quote($i, '/');
-
-                    // if (\Tools::version_compare(PHP_VERSION, '7.3', '<')) {
-                    //     $i = str_replace('#', '\#', $i);
-                    // }
-
-                    $i = str_replace('#', '\#', $i);
-
-                    return $i;
-                }, array_filter($group, function ($e) {
-                    return trim($e) !== "";
-                }));
-
-                $text = preg_replace('/' . implode('|', array_filter($group)) . '/', $match, $text);
-            }
-        } else {
-            usort($excluded, function ($a, $b) {
-                return strlen($a) > strlen($b);
-            });
-
-            foreach ($excluded as $excluded_word) {
-                $match = $this->excluded_words_wrappers[0] . $excluded_word . $this->excluded_words_wrappers[1];
-
-                $text = str_replace($match, $excluded_word, $text);
-            }
-        }
-
-        return $text;
-    }
-
-    //22/04/2024 Función que "limpia" el texto devuelto por la api quitando las etiquetas html <x></x> a las palabras que no queremos traducir. Sacada del módulo dingedi dgcontenttranslation. Lo que hace es llamar a excludeWords() con el parámetro replace como false.
-    public function unexcludeWords($text)
-    {
-        return $this->excludeWords($text, false);
-    }
-
     public function setLog() {          
         
         file_put_contents($this->log_file, date('Y-m-d H:i:s').' --------------------------------------------------'.PHP_EOL, FILE_APPEND);
@@ -1107,10 +930,19 @@ class Traducciones
             file_put_contents($this->log_file, date('Y-m-d H:i:s').' - Proceso para un solo idioma id_lang: '.$this->id_lang.PHP_EOL, FILE_APPEND);
         } else {
             file_put_contents($this->log_file, date('Y-m-d H:i:s').' - Proceso para varios idiomas, id_lang: '.implode(",", $this->langs).PHP_EOL, FILE_APPEND);
-        }             
+        }   
 
-        file_put_contents($this->log_file, date('Y-m-d H:i:s').' - Caractéres consumidos de cuenta Deepl en inicio: '.$this->caracteres_consumidos_cuenta_deepl.PHP_EOL, FILE_APPEND);
-        file_put_contents($this->log_file, date('Y-m-d H:i:s').' - Total caractéres disponibles en cuenta: '.$this->caracteres_totales_cuenta_deepl.PHP_EOL, FILE_APPEND);
+        //pedimos el uso de caracteres a la api para dejar log de los iniciales y los finales
+        if (!$api_usage = $this->apiUsage()) {
+            $this->caracteres_consumidos_inicio = '-no disponible-';
+            $this->caracteres_totales_disponibles = '-no disponible-';
+        } else {
+            $this->caracteres_consumidos_inicio = $api_usage[0];
+            $this->caracteres_totales_disponibles = $api_usage[1];
+        }       
+
+        file_put_contents($this->log_file, date('Y-m-d H:i:s').' - Caractéres consumidos en inicio: '.$this->caracteres_consumidos_inicio.PHP_EOL, FILE_APPEND);
+        file_put_contents($this->log_file, date('Y-m-d H:i:s').' - Total caractéres disponibles: '.$this->caracteres_totales_disponibles.PHP_EOL, FILE_APPEND);
 
         file_put_contents($this->log_file, date('Y-m-d H:i:s').' - - - - - - - - - - - - - - - - - - - - - - - - - - -'.PHP_EOL, FILE_APPEND);
 

@@ -16,12 +16,7 @@ require_once(dirname(__FILE__).'/../../../init.php');
 // TODO MODIFICAR para indicar el campo a traducir como parámetro al llamar a la clase _construct($cola = false, $id_lang = false, $id_product = false, $campo = null)
 
 // los parámetros GET no son int así que habrá que hacer cast
-// https://lafrikileria.com/modules/redactor/classes/Traducciones.php?cola=true..
-// https://lafrikileria.com/test/modules/redactor/classes/Traducciones.php?id_product=55724&id_lang=11
-
-//16/04/2024 Añadimos un proceso inicial que buscará productos sin traducir, para uno o varios idiomas, y que estén disponibles a la venta
-
-//22/04/2024 Vamos a añdir la posibilidad de ignorar ciertas palabras o grupos de palabras para que Deepl no las traduzca. Para ello usamos el pará,etro de la API "ignore_tags" con x. Eso quiere decir que lo que vaya envuelto en etiqeutas html <x></x> no será traducido. Para ello utilizo el método del módulo, que es pasar el texto por una función antes de enviarlo a Deepl. Esta función buscará en BD las palabras que queremos ignorar y si las encuentra en el texto les añadirá las etiqeutas. Después, al recibir la traducción pasará el texto recibido por otra función que retira las etiquetas.
+// https://lafrikileria.com/modules/redactor/classes/Traducciones.php?cola=true
 
 //si vienen como parámetros id_product y cola es un error
 if (isset($_GET['id_product']) && isset($_GET['cola'])) { 
@@ -86,10 +81,7 @@ class Traducciones
     18 - PT
     19 - BE, sería FR, pero no poner
     */
-    public $langs = array(12,18);
-
-    //array que indica los idiomas a los que asignar a la cola cuando busquemos productos a la venta sin traducir. Lo diferenciamos del otro $langs porque ese indica que productos hay que traducir, a que idiomas, y este indica qué idiomas meter a cola de los productos, de modo que podríamos estar traduciendo solo el inglés pero ir añadiendo y preparando los productos a otro idioma. Por ejemplo, en este momento no hay productos traducidos del inglés, si pongo a traducir los de inglés y francés que entren en cola y pongo a meter en cola los de id_lang de inglés meterá varios miles de golpe. Con esto puedo meter a cola manualmente los de inglés en bloques mientras los nuevos van entrando a francés solamente al tenerlo en esta variable
-    public $langs_cola = array(12,18);
+    public $langs = array(12);
 
     //array que contiene los campos a traducir. El proceso de traducción pasará por cada campo para ir llamando a la API pidiendo traducción. Por ahora meto array('name','description_short','description'); LO HACEMOS sacando por producto e id_lang de la tabla lafrips_product_langs_traducciones los que aún no estén traducidos
     public $campos = array();
@@ -139,12 +131,6 @@ class Traducciones
     public $log_file = _PS_ROOT_DIR_.'/modules/redactor/log/traducciones.txt';
     public $error = 0;
     public $mensajes_error = array();
-
-    //envoltorio para palabras que no queremos traducir, etiquetas html.
-    public $excluded_words_wrappers = array('<x>', '</x>');
-
-    //variable donde se alamcenarán las palabras para no traducir. Se almacenan en la variable del propio módulo de traducciones dgcontenttranslation, en tabla lafrips_configuration, name dingedi_excluded. TODO La idea es crear otra "nuestra" en la tabla para ir almacenando nuevas palabras 
-    public $excluded_words = array();
     
     public function __construct($cola = false, $id_lang = false, $id_product = false)
     {	                
@@ -168,9 +154,6 @@ class Traducciones
 
         if ($cola) {
             $this->cola = true;
-
-            //16/04/2024 Añadimos un proceso inicial que buscará productos sin traducir, y que estén disponibles a la venta, para uno o varios idiomas, que indicaremos en la variable $this->langs_cola
-            $this->checkCola();
         }
 
         if ($id_lang) {
@@ -265,9 +248,6 @@ class Traducciones
         $this->id_lang = null;
 
         $this->lang_iso = null;
-
-        //22/04/2024 Obtenemos las palabras a NO traducir. Por ahora almacenadas en la variable de lafrips_configuration del módulo de traducciones, 
-        $this->excluded_words = array_filter(explode(',', Configuration::get('dingedi_excluded')));
 
         foreach ($this->products AS $producto) {
             $this->id_product = $producto['id_product'];
@@ -417,13 +397,10 @@ class Traducciones
 
     //función que llama a la API de Deepl y pide y alamacena la traducción
     public function traduceTexto() {
-        //preparamos los parámetros POST. target_lang es el ISO del idioma destino, source_lang es el ISO del idioma original del texto, en este caso ES de Español, probablemente no sea necesario. preserve_formating, ignore_tags y tag_handling sería lo que nos permite conservar los tags html, para negritas etc, aunque ahora no estoy seguro de que conlleva cada una.  
-        
-        //22/04/2024 Procesamos el texto para etiqeutar las palabras que no queremos traducir
-        $text = $this->excludeWords($this->texto_original, true);
-        
+        //preparamos los parámetros POST. target_lang es el ISO del idioma destino, source_lang es el ISO del idioma original del texto, en este caso ES de Español, probablemente no sea necesario. preserve_formating, ignore_tags y tag_handling sería lo que nos permite conservar los tags html, para negritas etc, aunque ahora no estoy seguro de que conlleva cada una.        
+
         $array = array(
-            "text" => $text,            
+            "text" => $this->texto_original,            
             "target_lang" => strtoupper($this->lang_iso),
             "source_lang" => "ES",
             "preserve_formating" => 1,
@@ -533,9 +510,7 @@ class Traducciones
             } else if ($response_decode->translations) {
                 //recordemos que "translations" sería un array, en este caso contiene otro objeto en su primera posición, de modo que sacamos la propiedad text del objeto en 0 del array translations, del objeto response_decode. Seguro que se puede sacar directamente...
                 //por ahora ignoramos $response_decode->translations[0]->detected_source_language
-
-                //22/04/2024 Procesamos la respuesta para retirar las etiquetas de NO traducir antes de devolver la traducción        
-                return $this->unexcludeWords($response_decode->translations[0]->text);
+                return $response_decode->translations[0]->text;
             }
 
         } else {
@@ -740,43 +715,6 @@ class Traducciones
             //no está completo
             return false;
         }
-    }
-
-    //función que busca los productos que estando disponibles a la venta no tienen marcado completo en la tabla de traducciones, para los id_lang de $this->langs_cola y los encola para dichos id_lang
-    public function checkCola() {
-        $sql_update_cola = "UPDATE lafrips_product_langs_traducciones plt
-        JOIN lafrips_product pro ON pro.id_product = plt.id_product
-        SET
-        plt.en_cola = 1, 
-        plt.id_employee_metido_cola = 44,
-        plt.date_metido_cola = NOW()
-        WHERE plt.completo = 0
-        AND plt.en_cola = 0
-        AND pro.active = 1
-        AND plt.error = 0
-        AND pro.visibility = 'both'
-        AND plt.id_lang IN (".implode(",", $this->langs_cola).")";
-
-        $encolados = Db::getInstance()->execute($sql_update_cola);        
-
-        if ($encolados !== false) {
-            //Db::getInstance()->execute(update) devuelve 1 o false (true or false) si ha funcionado el update o no. Con numRows sabemos a cauntas líneas ha afectado la última sql, si es 0 es que no había productos
-            $affected_rows = Db::getInstance()->numRows();
-            if ($affected_rows > 0) {
-                file_put_contents($this->log_file, date('Y-m-d H:i:s').' --------------------------------------------------'.PHP_EOL, FILE_APPEND);
-                file_put_contents($this->log_file, date('Y-m-d H:i:s').' - Añadidos '.$affected_rows.' producto-idioma a cola de traducción, para id_lang/s '.implode(",", $this->langs_cola).PHP_EOL, FILE_APPEND); 
-            }
-            
-        } else {
-            file_put_contents($this->log_file, date('Y-m-d H:i:s').' - Error en update para añadir productos a cola para id_lang/s '.implode(",", $this->langs_cola).PHP_EOL, FILE_APPEND); 
-
-            $this->error = 1;
-        
-            $this->mensajes_error[] = ' - Error en update para añadir productos a cola para id_lang/s '.implode(",", $this->langs_cola);
-        }   
-
-        return;
-
     }
 
     public function getApiKey() {
@@ -1025,68 +963,6 @@ class Traducciones
 	public function checkIdlang()
     {        
         return (bool)Db::getInstance()->getValue("SELECT COUNT(*) FROM lafrips_lang WHERE id_lang = ".$this->id_lang);
-    }
-
-    //22/04/2024 Función que prepara el texto añadiendo etiquetas html <x></x> a las palabras que no queremos traducir. Sacada del módulo dingedi dgcontenttranslation.
-    //el tercer parámetro se podría utilizar en casos manuales, de momento lo dejamos como está
-    public function excludeWords($text, $replace, $excludedWords = null)
-    {
-        $excluded = $this->excluded_words;
-
-        //enc aso de recibir más palabras para no traducir en los parámetros de la función, se unen al array de palabras almacenado en lafrips_configuration
-        if (is_array($excludedWords)) {
-            $excluded = array_merge($excluded, $excludedWords);
-        }
-
-        if (empty($excluded)) {
-            return $text;
-        }
-
-        if ($replace === true) {
-            usort($excluded, function ($a, $b) {
-                return strlen($a) < strlen($b);
-            });
-
-            $match = $this->excluded_words_wrappers[0] . "$0" . $this->excluded_words_wrappers[1];
-
-            $groups = array_chunk($excluded, 150);
-
-            foreach ($groups as $group) {
-                $group = array_map(function ($i) {
-                    $i = preg_quote($i, '/');
-
-                    // if (\Tools::version_compare(PHP_VERSION, '7.3', '<')) {
-                    //     $i = str_replace('#', '\#', $i);
-                    // }
-
-                    $i = str_replace('#', '\#', $i);
-
-                    return $i;
-                }, array_filter($group, function ($e) {
-                    return trim($e) !== "";
-                }));
-
-                $text = preg_replace('/' . implode('|', array_filter($group)) . '/', $match, $text);
-            }
-        } else {
-            usort($excluded, function ($a, $b) {
-                return strlen($a) > strlen($b);
-            });
-
-            foreach ($excluded as $excluded_word) {
-                $match = $this->excluded_words_wrappers[0] . $excluded_word . $this->excluded_words_wrappers[1];
-
-                $text = str_replace($match, $excluded_word, $text);
-            }
-        }
-
-        return $text;
-    }
-
-    //22/04/2024 Función que "limpia" el texto devuelto por la api quitando las etiquetas html <x></x> a las palabras que no queremos traducir. Sacada del módulo dingedi dgcontenttranslation. Lo que hace es llamar a excludeWords() con el parámetro replace como false.
-    public function unexcludeWords($text)
-    {
-        return $this->excludeWords($text, false);
     }
 
     public function setLog() {          

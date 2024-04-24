@@ -1090,69 +1090,6 @@ function menosColaProducto(id_product) {
 
 }
 
-//función que recibe un id_product y llama vía ajax al controlador para añadirlo a cola de traducciones
-function masColaTraduccion(id_product) {   
-    //mostramos spinner
-    spinnerOn();
-
-    //sacamos panel procesando
-    showPanelProcesando();
-     
-    //preparamos la llamada ajax
-    var dataObj = {};
-
-    dataObj['id_product'] = id_product;  
-
-    $.ajax({
-        url: 'index.php?controller=AdminRedactorDescripciones&action=masColaTraducciones&token=' + token + '&ajax=1&rand=' + new Date().getTime(),
-        type: 'POST',
-        data: dataObj,
-        cache: false,
-		// async: true,
-        dataType: 'json',
-        success: function (data, textStatus, jqXHR)
-        
-        {
-            if (typeof data.error === 'undefined')
-            {                
-                
-                console.dir(data);  
-                
-                //si se metió correctamente en cola, hay que deshabilitar el botón Cola traducción
-                document.querySelector("#boton_cola_traduccion_"+id_product).disabled = true;                 
-
-                showSuccessMessage(data.message);
-
-                // showNoticeMessage('notice notice');                
-                
-                //eliminamos spinner
-                spinnerOff();
-
-                //escondemos panel procesando
-                hidePanelProcesando()
-            }
-            else
-            {       
-                //eliminamos spinner
-                spinnerOff();         
-                
-                //escondemos panel procesando
-                hidePanelProcesando()
-
-                showErrorMessage(data.message);
-            }
-
-        },
-        error: function (jqXHR, textStatus, errorThrown)
-        {
-            showErrorMessage('ERRORS jqXHR: ' + JSON.stringify(jqXHR));
-			showErrorMessage('ERRORS textStatus: ' + textStatus);
-			showErrorMessage('ERRORS errorThrown: ' + errorThrown);
-        }
-    });  //fin ajax
-
-}
-
 //al recibir en esta función primero hay que comprobar que la tabla lafrips_redactor_descripcion ya tenga una entrada para el producto cuyyo botón se ha pulsado, para insertarla si no, se hará en el controlador al mismo tiempo que sacamos la info del producto
 function procesarProducto(e) {
     console.log('procesar producto '+e.currentTarget.id);
@@ -1366,7 +1303,6 @@ function muestraProducto(producto) {
     //la API de redacta.me necesita un nombre, hasta 50 char, una descripción, hasta 500char, palabras clave, que no usamos pero pongo input y el tono, opcional también, que usamos por defecto Profesional ponemos select, aunque cuando se haga mediante lista se usará el por defecto.
     //08/03/2024 Añadimos un input hidden donde guardar si se genera descripción desde aquí con el botón procesar, de modo que al marcar revisar sepamos desde el controlador que estamos revisando una descripción generada en el momento y no una de la cola de redacción o simplemnte la descripción no generada por aPI
     //13/03/2024 Añadimos el id_product a todos los inputs y textareas para evitar un posible error en ocasiones, que aparentemente no se elimina el panel de un producto al mostrar otro y al pulsar revisar por ejemplo no recoje el textarea del producto del botón.
-    //17/04/2024 Ponemos un botón de Cola Traducción junto al de activar el producto, que llamará vía Ajax a masColaTraducciones() para añadir producto a cola de traducciones.
     var api_descripcion = `
     <div class="panel clearfix panel_producto">
         <h3>INFO API y descripción${mensaje_procesando}</h3>
@@ -1438,9 +1374,6 @@ function muestraProducto(producto) {
                     <button class="btn btn-default activa_producto" type="button" title="Activar el producto en Prestashop" id="boton_activar_${producto.id_product}" name="boton_activar_${producto.id_product}"  ${disable_activo}>
                         <i class="icon-money"></i> Activar
                     </button> 
-                    <button class="btn btn-default" type="button" title="Añadir producto a cola de traducciones" id="boton_cola_traduccion_${producto.id_product}" name="boton_cola_traduccion_${producto.id_product}">
-                        <i class="icon-globe"></i> Cola Traducción
-                    </button> 
                 </div>
                 <div class="btn-group pull-right">
                     <button class="btn btn-default revisa_descripcion_producto" type="button" title="Marcar descripción de producto como revisada. Guardará el contenido en la ficha de producto" id="boton_revisar_${producto.id_product}" name="boton_revisar_${producto.id_product}" ${disable_procesando}>
@@ -1485,13 +1418,6 @@ function muestraProducto(producto) {
 
     boton_activar.addEventListener('click', function(){     
         activarProducto(producto.id_product)
-    }); 
-
-    //17/04/2024 Ponemos un botón de Cola Traducción junto al de activar el producto, que llamará vía Ajax a masColaTraducciones() para añadir producto a cola de traducciones.
-    const boton_cola_traduccion = document.querySelector("#boton_cola_traduccion_"+producto.id_product);
-
-    boton_cola_traduccion.addEventListener('click', function(){     
-        masColaTraduccion(producto.id_product)
     }); 
 
     const boton_revisar = document.querySelector("#boton_revisar_"+producto.id_product);

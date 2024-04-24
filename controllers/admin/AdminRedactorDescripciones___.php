@@ -37,7 +37,7 @@ class AdminRedactorDescripcionesController extends ModuleAdminController {
      */
     public function setMedia(){
         parent::setMedia();
-        $this->addJs($this->module->getPathUri().'views/js/back_redactor.js?v=1.13');
+        $this->addJs($this->module->getPathUri().'views/js/back_redactor.js?v=1.12');
         //añadimos la dirección para el css
         $this->addCss($this->module->getPathUri().'views/css/back_redactor.css');
     }
@@ -708,51 +708,6 @@ class AdminRedactorDescripcionesController extends ModuleAdminController {
                 'message'=>'Error activando producto'
             )));
         }     
-    }
-
-    //17/04/2024 función que añade a cola de traducción el producto recibido. OJO, lo mete para todos los idiomas en la tabla y resetea las traducciones, es decir, marca 0 los campos a traducir y completo
-    public function ajaxProcessMasColaTraducciones(){
-        $id_product = Tools::getValue('id_product',0);   
-
-        // die(Tools::jsonEncode(array(                
-        //     'message'=>'prueba'
-        // )));
-        
-        if (!$id_product) {
-            die(Tools::jsonEncode(array('error'=> true, 'message'=>'Error recibiendo el producto a añadir a cola de traducción')));
-        }
-
-        if (!$id_employee = Context::getContext()->employee->id) {
-            $id_employee = 44;
-        }
-
-        $message = "Añadido a cola manualmente por ".Context::getContext()->employee->firstname;
-
-        $sql_update_cola_traducciones = "UPDATE lafrips_product_langs_traducciones
-        SET
-        `name` = 0,
-        `description` = 0,
-        description_short = 0, 
-        meta_description = 0,
-        meta_title = 0,
-        completo = 0,
-        en_cola = 1, 
-        id_employee_metido_cola = $id_employee,
-        date_metido_cola = NOW(),
-        error_message = CONCAT(error_message, ' | $message - ', DATE_FORMAT(NOW(),'%d-%m-%Y %H:%i:%s')),
-        date_upd = NOW()
-        WHERE id_product = $id_product";
-
-        if (Db::getInstance()->Execute($sql_update_cola_traducciones)) {
-            die(Tools::jsonEncode(array(                
-                'message'=>'Producto añadido a cola de traducción'
-            )));
-        } else {
-            die(Tools::jsonEncode(array(
-                'error'=> true, 
-                'message'=>'Error añadiendo producto a cola de traducción'
-            )));
-        }    
     }
 
 }
