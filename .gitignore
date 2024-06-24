@@ -1,2 +1,4 @@
 #ignoramos el archivo con la key para la api de Redacta.me
-secrets/api.json
+# secrets/api.json
+#toda la carpeta
+secrets

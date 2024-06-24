@@ -154,7 +154,7 @@ class Traducciones
 
         //pedimos el uso de caracteres a la api para dejar log de los iniciales y los finales
         if (!$this->apiUsage()) {
-            exit;
+            // exit;
         }   
         
         if ((!$cola && !$id_product) || ($cola && $id_product)) {
@@ -507,7 +507,10 @@ class Traducciones
                 $this->mensajes_error[] = ' - Http Response Code = '.$http_code;
                 $this->mensajes_error[] = ' - API Message: '.$response_decode->message;
 
-                $this->setError('Error API, Mensaje: '.$response_decode->message);
+                //si es error 500, cosa de ellos, service unavailbale, etc, no marcamos error
+                if (($http_code < 500) || ($http_code > 599)) {
+                    $this->setError('Error API, Mensaje: '.$response_decode->message);
+                }
 
                 return false;
             }
@@ -752,6 +755,7 @@ class Traducciones
         plt.date_metido_cola = NOW()
         WHERE plt.completo = 0
         AND plt.en_cola = 0
+        AND plt.ignorar = 0
         AND pro.active = 1
         AND plt.error = 0
         AND pro.visibility = 'both'
@@ -872,6 +876,7 @@ class Traducciones
             // echo '</pre>';
 
             //a 03/04/2024 si la API devuelve correctamente la petición sería un json con dos parámetros, character_count y character_limit
+            //31/05/2024 Parece haber algún problema con esta API, voy a dejar que no se meta como error si la respuesta no es correcta ya que muchas veces parece que no funciona bien y son datos que no son imprescindibles
             if ($response_decode->character_count && $response_decode->character_limit) {
                 // file_put_contents($this->log_file, date('Y-m-d H:i:s').' - API usage: character_count = '.$response_decode->character_count.' - character_limit = '.$response_decode->character_limit.PHP_EOL, FILE_APPEND);                
 
@@ -917,9 +922,10 @@ class Traducciones
                 return true;     
 
             } else {
+                //31/05/2024 Parece haber algún problema con esta API, voy a dejar que no se meta como error si la respuesta no es correcta ya que muchas veces parece que no funciona bien y son datos que no son imprescindibles
                 file_put_contents($this->log_file, date('Y-m-d H:i:s').' - Error, la petición de uso de caractéres a la API no ha devuelto los parámetros character_count y character_limit'.PHP_EOL, FILE_APPEND); 
 
-                $this->error = 1;
+                // $this->error = 1;
             
                 $this->mensajes_error[] = ' - Error, la petición de uso de caractéres a la API no ha devuelto los parámetros character_count y character_limit';
                 
