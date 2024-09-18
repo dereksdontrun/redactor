@@ -141,8 +141,9 @@ class ColaDescripciones
             //11/03/2024 He cambiado el proceso de modo que en el campo api_json se guarda el json de la primera vez que se hace petición a la api, de modo que ahí estaría guardada la descripción original preparada para la api, en el caso de estar preparada. Para el caso de que se meta en cola un producto que ya fue procesado para descripción, primero comprobamos si existe ese valor en api_json y si es así sacamos la desciprión original para enviar a la api. de este modo evitamos que aquí recojamos una descripción recortada a 500 caracteres que podría no funcionar bien.
             // $sql_info_producto = "SELECT SUBSTRING(name, 1, 50) AS nombre, SUBSTRING(description_short, 1, 500) AS descripcion 
             // FROM lafrips_product_lang WHERE id_lang = 1 AND id_product = $id_product";
+            //18/09/2024 redacta.me ha ampliado el límite de caracteres de la descripción de 500 a 5000
 
-            $sql_info_producto = "SELECT SUBSTRING(name, 1, 50) AS nombre, SUBSTRING(description_short, 1, 500) AS descripcion, red.api_json AS api_json 
+            $sql_info_producto = "SELECT SUBSTRING(name, 1, 50) AS nombre, SUBSTRING(description_short, 1, 5000) AS descripcion, red.api_json AS api_json 
             FROM lafrips_product_lang pla
             JOIN lafrips_redactor_descripcion red ON red.id_product = pla.id_product
             WHERE pla.id_lang = 1 

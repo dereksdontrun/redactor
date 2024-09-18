@@ -66,6 +66,7 @@ class Redactame
         }
         //insertamos fecha y empleado de redactar y el json de envío post a la API en lafrips_redactor_descripcion
         //11/03/2024 Solo guardaremos el json si api_json en lafrips_redactor_descripcion está vacío, es decir, la primera vez, dado que a partir de ahí, una vez generada una descripción, el producto en su campo description_short puede tener un texto grande que pisará (cortado a 500 caracteres) lo que haya en el campo
+        //18/09/2024 redacta.me ha ampliado el límite de caracteres de la descripción de 500 a 5000
         $sql_redactando = "UPDATE lafrips_redactor_descripcion
         SET                
         procesando = 1,

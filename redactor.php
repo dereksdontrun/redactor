@@ -60,12 +60,12 @@ class Redactor extends Module
 
         $this->ps_versions_compliancy = array('min' => '1.6', 'max' => '1.7');
 
-        ini_set('error_log', '/var/www/vhost/lafrikileria.com/home/html/test/modules/redactor/log/error.log');
+        // ini_set('error_log', '/var/www/vhost/lafrikileria.com/home/html/test/modules/redactor/log/error.log');
 
-        // Turn on error reporting
-        ini_set('display_errors', 1);
-        // error_reporting(E_ALL); cambiamos para que no saque E_NOTICE
-        error_reporting(E_ERROR | E_WARNING | E_PARSE | E_DEPRECATED | E_STRICT);
+        // // Turn on error reporting
+        // ini_set('display_errors', 1);
+        // // error_reporting(E_ALL); cambiamos para que no saque E_NOTICE
+        // error_reporting(E_ERROR | E_WARNING | E_PARSE | E_DEPRECATED | E_STRICT);
     }
 
     /**

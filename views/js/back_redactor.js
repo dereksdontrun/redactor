@@ -1239,6 +1239,7 @@ function muestraProducto(producto) {
     document.querySelector('div#div_productos').appendChild(div_producto);
 
     //tenemos que mostrar un row con info del producto, foto, referencia, etc. Si ha sido redactado antes, revisado, si está en cola o procesando, con avisos. Después un input con la info pasada a la API sacada de api_json si ya fue redactado, o con la descripción del producto, que sería lo que enviaremos a la API. Si la descripción tiene más de 500 caracteres se avisa. Mostramos también la descripción actual en otro input, esta coincidirá con el anterior input si el producto no ha sido redactado. Habrá un select para seleccionar el "tono" a asignar a la api (persuasive, etc) por defecto ¿?
+    //18/09/2024 redacta.me ha ampliado el límite de caracteres de la descripción de 500 a 5000
     //se puede guardar la descripción si se modifica, ya que esta pantalla sirve para pedir una nueva descripción o para revisarla, marcando botón de revisado.
 
     if (producto.indexado) {
@@ -1364,6 +1365,7 @@ function muestraProducto(producto) {
     }
 
     //la API de redacta.me necesita un nombre, hasta 50 char, una descripción, hasta 500char, palabras clave, que no usamos pero pongo input y el tono, opcional también, que usamos por defecto Profesional ponemos select, aunque cuando se haga mediante lista se usará el por defecto.
+    //18/09/2024 redacta.me ha ampliado el límite de caracteres de la descripción de 500 a 5000
     //08/03/2024 Añadimos un input hidden donde guardar si se genera descripción desde aquí con el botón procesar, de modo que al marcar revisar sepamos desde el controlador que estamos revisando una descripción generada en el momento y no una de la cola de redacción o simplemnte la descripción no generada por aPI
     //13/03/2024 Añadimos el id_product a todos los inputs y textareas para evitar un posible error en ocasiones, que aparentemente no se elimina el panel de un producto al mostrar otro y al pulsar revisar por ejemplo no recoje el textarea del producto del botón.
     //17/04/2024 Ponemos un botón de Cola Traducción junto al de activar el producto, que llamará vía Ajax a masColaTraducciones() para añadir producto a cola de traducciones.
@@ -1409,7 +1411,7 @@ function muestraProducto(producto) {
             </div>
             <div class="row">
                 <label for="textarea_descripcion_api_${producto.id_product}" class="control-label col-form-label col-form-label-sm">
-                    <span title="Última petición a API o descripción actual. Max. 500 caracteres" data-toggle="tooltip" class="label-tooltip" data-html="true">
+                    <span title="Última petición a API o descripción actual. Max. 5000 caracteres" data-toggle="tooltip" class="label-tooltip" data-html="true">
                         Descripción del producto para enviar a la API
                     </span>
                     <span class="caracteres_descripcion_api" id="caracteres_descripcion_api_${producto.id_product}"></span>
@@ -1771,9 +1773,9 @@ function generaDescripcion(id_product) {
     const tono = document.querySelector("#select_tono_api_"+id_product).value;
     const descripcion = document.querySelector("#textarea_descripcion_api_"+id_product).value;
     
-
-    if (descripcion.length > 500) {
-        showErrorMessage('La descripción a enviar a la API no puede tener más de 500 caracteres');
+    //18/09/2024 redacta.me ha ampliado el límite de caracteres de la descripción de 500 a 5000
+    if (descripcion.length > 5000) {
+        showErrorMessage('La descripción a enviar a la API no puede tener más de 5000 caracteres');
         return;
     } else if (nombre.length > 50) {
         showErrorMessage('El nombre a enviar a la API no puede tener más de 50 caracteres');
@@ -1941,11 +1943,12 @@ function cuentaCaracteres(arg) {
     // usamos función de javascript str.startsWith() AL FINAL HE TENIDO QUE SACAR EL id_product de element_id
     //if (element_id.startsWith('textarea_descripcion_api')) {
     //if (element_id.startsWith('input_nombre_api')) {
+    //18/09/2024 redacta.me ha ampliado el límite de caracteres de la descripción de 500 a 5000
 
     if (element_id == 'textarea_descripcion_api_'+id_product) {
-        if (num_caracteres < 400) {
+        if (num_caracteres < 4000) {
             numero = `<span class="badge badge-success">${num_caracteres}</span>`;
-        } else if (num_caracteres > 500) {
+        } else if (num_caracteres > 5000) {
             numero = `<span class="badge badge-danger">${num_caracteres}</span>`;
         } else {
             numero = `<span class="badge badge-warning">${num_caracteres}</span>`;
