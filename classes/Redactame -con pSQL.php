@@ -230,9 +230,7 @@ class Redactame
                 
                 return array(
                     "result" => 1,
-                    "message" => $html_response
-                    //07/11/2024 quito pSQL porque está poniendo contra barra siempre delante de las dobles comillas, a ver si no falla el insert por otro lado
-                    // "message" => pSQL($html_response, true)  
+                    "message" => pSQL($html_response, true)
                     // "curl_info" => "Connect time= ".$connect_time." - Total time= ".$total_time
                 );
 
@@ -424,7 +422,6 @@ class Redactame
 
     //función que busca las palabras fanático, fanática. fanáticos, fanáticas y las sustituye por fan/s
     //CAMBIAR A REGEX
-    //07/11/2024 Redactame mete dobles asteriscos a modo de comillas muchas veces, vamos a eliminarlos en esta función también
     public static function sustituyeFanatico($description) {
         $fanatico_singular = array('fanatico','fanático','fanatica','fanática');
         $fanatico_plural = array('fanaticos','fanáticos','fanaticas','fanáticas');
@@ -435,9 +432,6 @@ class Redactame
         foreach ($fanatico_plural AS $fan) {
             $description = str_replace($fan, "fans", $description);
         }
-
-        //eliminamos dobles asteriscos
-        $description = str_replace("**", "", $description);
 
         return $description;
     }
