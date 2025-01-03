@@ -10,18 +10,10 @@ if (!defined('_PS_VERSION_'))
     exit;
 
 class AdminRedactorDescripcionesController extends ModuleAdminController {
-
-    public $id_product;
-    public $nombre;
-    public $descripcion;
-    public $tono;
-    public $keywords;
     
     public function __construct() {    
         //situamos Redactame.php para acceder a sus funciones
         require_once (dirname(__FILE__) .'/../../classes/Redactame.php');   
-        require_once (dirname(__FILE__) .'/../../classes/OpenAIRedactor.php');   
-        require_once (dirname(__FILE__) .'/../../classes/RedactorTools.php');   
 
         $this->lang = false;
         $this->bootstrap = true;        
@@ -45,7 +37,7 @@ class AdminRedactorDescripcionesController extends ModuleAdminController {
      */
     public function setMedia(){
         parent::setMedia();
-        $this->addJs($this->module->getPathUri().'views/js/back_redactor.js?v=1.3');
+        $this->addJs($this->module->getPathUri().'views/js/back_redactor.js?v=1.13');
         //añadimos la dirección para el css
         $this->addCss($this->module->getPathUri().'views/css/back_redactor.css');
     }
@@ -351,8 +343,7 @@ class AdminRedactorDescripcionesController extends ModuleAdminController {
         END AS redactado,
         IFNULL(red.revisado, 0) AS revisado,
         IFNULL(CONCAT( '$url_base', ima.id_image, '-home_default/', pla.link_rewrite, '.jpg'), CONCAT('$url_base', 'img/logo_producto_medium_default.jpg')) AS url_imagen,
-        CONCAT( '$url_product_back', pro.id_product) AS url_producto,
-        red.api AS api_seleccionada
+        CONCAT( '$url_product_back', pro.id_product) AS url_producto
         FROM lafrips_product pro
         JOIN lafrips_product_lang pla ON pro.id_product = pla.id_product AND pla.id_lang = 1
         LEFT JOIN lafrips_supplier sup ON sup.id_supplier = pro.id_supplier
@@ -402,12 +393,6 @@ class AdminRedactorDescripcionesController extends ModuleAdminController {
             die(Tools::jsonEncode(array('error'=> true, 'message'=>'Error recibiendo los productos a añadir a cola de redacción')));
         }
 
-        $api_seleccionada = Tools::getValue('api_seleccionada');               
-
-        if (empty($api_seleccionada)) {
-            die(Tools::jsonEncode(array('error'=> true, 'message'=>'Error, no seleccionada API de redacción al añadir a cola de redacción')));
-        }
-
         if (!$id_employee = Context::getContext()->employee->id) {
             $id_employee = 44;
         }
@@ -419,7 +404,6 @@ class AdminRedactorDescripcionesController extends ModuleAdminController {
             if ($id_redactor_descripcion = Db::getInstance()->getValue("SELECT id_redactor_descripcion FROM lafrips_redactor_descripcion WHERE id_product = $id_product")) {
                 $sql_update_producto_cola = "UPDATE lafrips_redactor_descripcion
                 SET
-                api = '$api_seleccionada',
                 en_cola = 1,
                 date_metido_cola = NOW(),
                 id_employee_metido_cola = $id_employee,
@@ -433,9 +417,9 @@ class AdminRedactorDescripcionesController extends ModuleAdminController {
 
             } else {
                 $sql_insert_producto_cola = "INSERT INTO lafrips_redactor_descripcion
-                (id_product, api, en_cola, date_metido_cola, id_employee_metido_cola, date_add) 
+                (id_product, en_cola, date_metido_cola, id_employee_metido_cola, date_add) 
                 VALUES 
-                ($id_product, '$api_seleccionada', 1, NOW(), $id_employee, NOW())";
+                ($id_product, 1, NOW(), $id_employee, NOW())";
 
                 if (Db::getInstance()->Execute($sql_insert_producto_cola)) {
                     $array_ok[] = $id_product;
@@ -489,10 +473,8 @@ class AdminRedactorDescripcionesController extends ModuleAdminController {
                 'message'=>'El producto seleccionado está siendo procesado en este momento, no puede eliminarse de la cola'
             )));
         } else {
-            //30/12/2024 al quitar de cola eliminamos la api seleccionada también
             $sql_update_producto_cola = "UPDATE lafrips_redactor_descripcion
             SET
-            api = '',
             en_cola = 0,
             date_eliminado_cola = NOW(),
             id_employee_eliminado_cola = $id_employee,
@@ -521,7 +503,7 @@ class AdminRedactorDescripcionesController extends ModuleAdminController {
     //función que recibe un id_product y devuelve toda la información concerniente a las descripciones, además de foto, referencia etc, para mostrar en el recuadro lateral de la tabla. 
     //Tendrá un input descripción que contendrá la descripción actual del producto. Otro input que contendrá la info que se va a pasar por defecto a la API de redacta.me. Esta info será el contenido de la descripción si el producto no figura como redactado = 1, ya que si ha sido redactado, la descripción será o bien la que devolvió la api o algo similar. Si es así, en el input se pondrá el contenido que se utilizó para que la API generara la descripción y que estará guardado en api_json en la tabla redactor_descripcion. Si no ha sido redactado, es posible que el producto ya tenga una descripción completa, en cuyo caso mostraremos un mensaje de aviso o algo así, si esta tiene más de 500 caracteres que es el máximo que se puede pasar a la api.
     //18/09/2024 redacta.me ha ampliado el límite de caracteres de la descripción de 500 a 5000
-    //al recibir en esta función primero hay que comprobar que la tabla lafrips_redactor_descripcion ya tenga una entrada para el producto cuyo botón se ha pulsado, para insertarla si es que no    
+    //al recibir en esta función primero hay que comprobar que la tabla lafrips_redactor_descripcion ya tenga una entrada para el producto cuyyo botón se ha pulsado, para insertarla si es que no    
     public function ajaxProcessMostrarProducto() {
         $id_product = Tools::getValue('id_product',0);               
 
@@ -568,8 +550,7 @@ class AdminRedactorDescripcionesController extends ModuleAdminController {
         red.api_json AS api_json,        
         IFNULL(CONCAT( '$url_base', ima.id_image, '-home_default/', pla.link_rewrite, '.jpg'), CONCAT('$url_base', 'img/logo_producto_medium_default.jpg')) AS url_imagen,
         CONCAT( '$url_product_back', pro.id_product) AS url_producto,
-        pro.active AS activo,
-        red.api AS api_seleccionada, red.redactado_api AS redactado_api
+        pro.active AS activo
         FROM lafrips_product pro
         JOIN lafrips_product_lang pla ON pro.id_product = pla.id_product AND pla.id_lang = 1
         LEFT JOIN lafrips_image ima ON ima.id_product = pro.id_product AND ima.cover = 1   
@@ -626,7 +607,6 @@ class AdminRedactorDescripcionesController extends ModuleAdminController {
     }
 
     //función que recibe un id_product y una descripción y nombre y llama a Redactame.php para actualizar product_name y description_short del producto para id_lang 1. También marcará Revisado a 1, En cola a 0, etc desde allí.
-    //30/12/2024 Al añadir otra api, openai para generar descripciones, cuando revisamos un producto queremos poner con cual fue redactado. La api seleccionada para generar la descripción se guarda en 'api' cuando se mete en cola o se pulsa generar desde el controlador, de modo que al revisar copiaremos en redactado_api lo que haya en api. Si hubieramos revisado el producto desde el controlador sin antes generar la descripción, es decir, modificar lo que hubiera, en 'api' no habría nada y redactado_api quedaría vacío, lo que sería correcto. O podría ser un producto redactado en cola y revisado después desde el controlador, con lo que tenemos que recoger de api la api seleccionada.
     public function ajaxProcessRevisarDescripcion() {
         $id_product = Tools::getValue('id_product', false);  
         $nombre = Tools::getValue('nombre', false);  
@@ -642,14 +622,14 @@ class AdminRedactorDescripcionesController extends ModuleAdminController {
             die(Tools::jsonEncode(array('error'=> true, 'message'=>'Error, los campos a guardar contienen elementos inválidos')));
         }
 
-        if (($retorno_actualiza_producto = RedactorTools::actualizaProducto($id_product, $descripcion, $nombre)) === true) {
+        if (($retorno_actualiza_producto = Redactame::actualizaProducto($id_product, $descripcion, $nombre)) === true) {
 
             //marcar revisado. Para marcar redactado, la descripción debe haber sido solicitada a la API desde el front también
             if ($redactado) {
-                RedactorTools::updateTablaRedactorRedactado(1, $id_product);        
+                Redactame::updateTablaRedactorRedactado(1, $id_product);        
             }
 
-            RedactorTools::updateTablaRedactorRevisado($id_product);            
+            Redactame::updateTablaRedactorRevisado($id_product);            
 
             die(Tools::jsonEncode(array(
                 'message'=>'Producto marcado como revisado, descripción y nombre actualizados',
@@ -662,94 +642,38 @@ class AdminRedactorDescripcionesController extends ModuleAdminController {
     }
 
     //función que recibe los datos para enviar a la API y llama a la clase Redactame para hacer la petición. Actualizará Encola, procesando, etc si es necesario
-    //30/12/2024 metermos en 'api' de tabla redactor la api seleccionada en el controlador
-    //como ahora hay dos apis para generar descipciones, llamaremos a cada función dependiendo de la api seleccionada en el controlador
     public function ajaxProcessGenerarDescripcion() {
-        $api_seleccionada = Tools::getValue('api_seleccionada');  
+        $id_product = Tools::getValue('id_product',0);  
+        $nombre = Tools::getValue('nombre',0);  
+        $keywords = Tools::getValue('keywords',0);  
+        $tono = Tools::getValue('tono',0);  
+        $descripcion = Tools::getValue('descripcion',0);               
 
-        if (empty($api_seleccionada)) {
-            die(Tools::jsonEncode(array('error'=> true, 'message'=>'Error con la información de API seleccionada para redacción')));
+        if (empty($id_product) || empty($nombre) || empty($descripcion) || empty($tono)) {
+            die(Tools::jsonEncode(array('error'=> true, 'message'=>'Error con la información para enviar a la API')));
         }
 
-        $this->id_product = Tools::getValue('id_product',0);  
-        $this->nombre = Tools::getValue('nombre',0);
-        $this->descripcion = Tools::getValue('descripcion',0);         
-
-        if (!Validate::isCleanHtml($this->nombre) || !Validate::isCleanHtml($this->descripcion)) {
+        if (!Validate::isCleanHtml($nombre) || !Validate::isCleanHtml($descripcion) || !Validate::isCleanHtml($keywords)) {
             die(Tools::jsonEncode(array('error'=> true, 'message'=>'Error, los campos a procesar contienen elementos inválidos')));
         }
 
-        if ($api_seleccionada == 'redactame') {
-            $this->keywords = Tools::getValue('keywords',0);  
-            $this->tono = Tools::getValue('tono',0);
-
-            if (empty($this->id_product) || empty($this->nombre) || empty($this->descripcion) || empty($this->tono)) {
-                die(Tools::jsonEncode(array('error'=> true, 'message'=>'Error con la información para enviar a la API')));
-            }
-
-            $this->generarDescripcionRedactame();
-        } elseif ($api_seleccionada == 'openai') {
-            if (empty($this->id_product) || empty($this->nombre) || empty($this->descripcion)) {
-                die(Tools::jsonEncode(array('error'=> true, 'message'=>'Error con la información para enviar a la API')));
-            }
-
-            $this->generarDescripcionOpenAI();
-        }
-    }
-
-    public function generarDescripcionRedactame() {        
-
         $info_api = array(
-            "id_product" => $this->id_product,
-            "title" => $this->nombre,
-            "description" => $this->descripcion,
-            "keywords" => $this->keywords,
-            "tone" => $this->tono
-        );                
+            "id_product" => $id_product,
+            "title" => $nombre,
+            "description" => $descripcion,
+            "keywords" => $keywords,
+            "tone" => $tono
+        );        
 
         $resultado_api = Redactame::apiRedactameSolicitudDescripcion($info_api);
 
         if ($resultado_api["result"] == 1) {
             //si desde el front hemos solicitado una descripción a la API, reseteamos redactado, y de paso se pondrá procesando a 0 también. Después tendrán que pulsar sobre revisado para que veulva a estar como redactado.
-            RedactorTools::updateTablaRedactorRedactado(0, $this->id_product);  
+            Redactame::updateTablaRedactorRedactado(0, $id_product);  
 
             die(Tools::jsonEncode(array(
                 'message'=>'Descripción generada correctamente, revisala antes de salir para guardarla',
                 'descripcion_api' => $resultado_api["message"]
-            )));
-        }
-
-        die(Tools::jsonEncode(array(
-            'error' => true,
-            'message'=>'Error generando la descripción',
-            'error_message' => $resultado_api["message"]
-        )));
-    }
-
-    public function generarDescripcionOpenAI() {
-        $info_api = array(
-            "id_product" => $this->id_product,
-            "title" => $this->nombre,
-            "description" => $this->descripcion
-        );                
-        
-        $resultado_api = OpenAIRedactor::apiOpenAISolicitudDescripcion($info_api);
-
-        if ($resultado_api["result"] == 1) {
-            //si desde el front hemos solicitado una descripción a la API, reseteamos redactado, y de paso se pondrá procesando a 0 también. Después tendrán que pulsar sobre revisado para que vuelva a estar como redactado.
-            RedactorTools::updateTablaRedactorRedactado(0, $this->id_product);  
-
-            //si ha devuelvto titulo lo añadimos
-            if (isset($resultado_api['titulo'])) {
-                $titulo_producto = $resultado_api['titulo'];
-            } else {
-                $titulo_producto = 0;
-            }
-
-            die(Tools::jsonEncode(array(
-                'message'=>'Descripción generada correctamente, revisala antes de salir para guardarla',
-                'descripcion_api' => $resultado_api["message"],
-                'titulo_producto' => $titulo_producto 
             )));
         }
 

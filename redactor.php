@@ -31,6 +31,7 @@ if (!defined('_PS_VERSION_')) {
 // ABAJO SQL CREAR TABLA LAFRIPS_REDACTOR_DESCRIPCION
 
 require_once(dirname(__FILE__).'/classes/Redactame.php');
+require_once(dirname(__FILE__).'/classes/OpenAIRedactor.php');
 
 class Redactor extends Module
 {
@@ -202,37 +203,78 @@ class Redactor extends Module
                 ),
                 'input' => array(
                     array(
-                        'type' => 'switch',
-                        'label' => $this->l('Live mode'),
-                        'name' => 'REDACTOR_LIVE_MODE',
-                        'is_bool' => true,
-                        'desc' => $this->l('Use this module in live mode'),
-                        'values' => array(
-                            array(
-                                'id' => 'active_on',
-                                'value' => true,
-                                'label' => $this->l('Enabled')
+                        'col' => 5,
+                        'type' => 'select',                        
+                        'desc' => 'Modelo de GPT a utilizar en las peticiones',
+                        'name' => 'REDACTOR_OPENAI_MODEL',
+                        'label' => 'Selecciona Modelo',
+                        'options' => array(
+                            'query' => array(
+                                array('id_option' => 'gpt-4o', 'name' => 'GPT-4o'),  
+                                array('id_option' => 'gpt-4o-mini', 'name' => 'GPT-4o-mini')  
                             ),
-                            array(
-                                'id' => 'active_off',
-                                'value' => false,
-                                'label' => $this->l('Disabled')
-                            )
-                        ),
+                            'id' => 'id_option',  // Campo que representa el valor de la opción
+                            'name' => 'name'  // Campo que representa el texto visible
+                        )
                     ),
                     array(
-                        'col' => 3,
+                        'col' => 5,
+                        'row' => 25,
+                        'type' => 'textarea',
+                        'prefix' => '<i class="icon icon-edit"></i>',
+                        'desc' => 'Contexto para GPT de OpenAI',
+                        'name' => 'REDACTOR_OPENAI_SYSTEM_ROLE_CONTEXT',
+                        'label' => 'Contexto para rol de sistema',
+                        // 'autoload_rte' => true,  // Habilita el editor enriquecido (TinyMCE), vamos a guardar un texto con etiqeutas html y van a desaparecer al insertar en la tabla de configuración si no hacemos esto, además de permitir html en el getValue() de abajo y en updateValue() - LO QUITO, se comporta como un editor, aplicando html. Lo que haré será meter solo el nombre de cada etiqueta asi: strrong, h1, h2 ...
+                    ),
+                    array(
+                        'col' => 5,
                         'type' => 'text',
-                        'prefix' => '<i class="icon icon-envelope"></i>',
-                        'desc' => $this->l('Enter a valid email address'),
-                        'name' => 'REDACTOR_ACCOUNT_EMAIL',
-                        'label' => $this->l('Email'),
+                        'prefix' => '<i class="icon icon-align-center"></i>',
+                        'desc' => 'Número máximo de tokens que serán utilizados para la respuesta. No incluyen los del prompt y la suma total de ambos no debe superar el límite del modelo en uso (mantengámoslo en unos 4000 máximo)',
+                        'name' => 'REDACTOR_OPENAI_MAX_TOKENS',
+                        'label' => 'Max Tokens',
                     ),
                     array(
-                        'type' => 'password',
-                        'name' => 'REDACTOR_ACCOUNT_PASSWORD',
-                        'label' => $this->l('Password'),
+                        'col' => 5,
+                        'type' => 'text',
+                        'prefix' => '<i class="icon icon-question"></i>',
+                        'desc' => 'Controla la aleatoriedad y creatividad en las respuestas del modelo. Valores más bajos dan respuestas más determinísticas y conservadoras, valores más altos, más creativas, variadas e impredecibles.',
+                        'name' => 'REDACTOR_OPENAI_TEMPERATURE',
+                        'label' => 'Temperature',
                     ),
+                    // array(
+                    //     'type' => 'switch',
+                    //     'label' => $this->l('Live mode'),
+                    //     'name' => 'REDACTOR_LIVE_MODE',
+                    //     'is_bool' => true,
+                    //     'desc' => $this->l('Use this module in live mode'),
+                    //     'values' => array(
+                    //         array(
+                    //             'id' => 'active_on',
+                    //             'value' => true,
+                    //             'label' => $this->l('Enabled')
+                    //         ),
+                    //         array(
+                    //             'id' => 'active_off',
+                    //             'value' => false,
+                    //             'label' => $this->l('Disabled')
+                    //         )
+                    //     ),
+                    // ),
+                    // array(
+                    //     'col' => 3,
+                    //     'type' => 'text',
+                    //     'prefix' => '<i class="icon icon-envelope"></i>',
+                    //     'desc' => $this->l('Enter a valid email address'),
+                    //     'name' => 'REDACTOR_ACCOUNT_EMAIL',
+                    //     'label' => $this->l('Email'),
+                    // ),
+                    // array(
+                    //     'type' => 'password',
+                    //     'name' => 'REDACTOR_ACCOUNT_PASSWORD',
+                    //     'label' => $this->l('Password'),
+                    // ),
                 ),
                 'submit' => array(
                     'title' => $this->l('Save'),
@@ -247,9 +289,13 @@ class Redactor extends Module
     protected function getConfigFormValues()
     {
         return array(
-            'REDACTOR_LIVE_MODE' => Configuration::get('REDACTOR_LIVE_MODE', true),
-            'REDACTOR_ACCOUNT_EMAIL' => Configuration::get('REDACTOR_ACCOUNT_EMAIL', 'contact@prestashop.com'),
-            'REDACTOR_ACCOUNT_PASSWORD' => Configuration::get('REDACTOR_ACCOUNT_PASSWORD', null),
+            'REDACTOR_OPENAI_SYSTEM_ROLE_CONTEXT' => Configuration::get('REDACTOR_OPENAI_SYSTEM_ROLE_CONTEXT', null),
+            'REDACTOR_OPENAI_MAX_TOKENS' => Configuration::get('REDACTOR_OPENAI_MAX_TOKENS', 1000),
+            'REDACTOR_OPENAI_TEMPERATURE' => Configuration::get('REDACTOR_OPENAI_TEMPERATURE', 0.7),
+            'REDACTOR_OPENAI_MODEL' => Configuration::get('REDACTOR_OPENAI_MODEL', 'gpt-4o'),
+            // 'REDACTOR_LIVE_MODE' => Configuration::get('REDACTOR_LIVE_MODE', true),
+            // 'REDACTOR_ACCOUNT_EMAIL' => Configuration::get('REDACTOR_ACCOUNT_EMAIL', 'contact@prestashop.com'),
+            // 'REDACTOR_ACCOUNT_PASSWORD' => Configuration::get('REDACTOR_ACCOUNT_PASSWORD', null),
         );
     }
 
@@ -262,6 +308,7 @@ class Redactor extends Module
 
         foreach (array_keys($form_values) as $key) {
             Configuration::updateValue($key, Tools::getValue($key));
+            // Configuration::updateValue($key, Tools::getValue($key, true), true); //true en getValue() = permitir html, true en updateValue() = sin filtrado. OJO que lo estamos haceindo para todos los inputs  NO FUNCIONA BIEN, guarda las etiquetas pero repite algunas ¿? Las guardo solo con su nombre : strong, h1, br, etc
         }
     }
 
@@ -288,29 +335,35 @@ class Redactor extends Module
     /*
 
     CREATE TABLE `lafrips_redactor_descripcion` (
-    `id_redactor_descripcion` int(10) NOT NULL AUTO_INCREMENT,
-    `id_product` int(10) NOT NULL,
-    `procesando` tinyint(1) NOT NULL,
-    `inicio_proceso` datetime NOT NULL,
-    `api_json` text,
-    `en_cola` tinyint(1) NOT NULL,
-    `date_metido_cola` datetime NOT NULL,
-    `id_employee_metido_cola` int(10) NOT NULL,
-    `date_eliminado_cola` datetime NOT NULL,
-    `id_employee_eliminado_cola` int(10) NOT NULL,
-    `redactado` tinyint(1) NOT NULL,
-    `revisado` tinyint(1) NOT NULL,
-    `date_redactado` datetime NOT NULL,
-    `id_employee_redactado` int(10) NOT NULL,
-    `date_revisado` datetime NOT NULL,
-    `id_employee_revisado` int(10) NOT NULL,
-    `error` tinyint(4) NOT NULL,
-    `date_add` datetime NOT NULL,
-    `date_upd` datetime NOT NULL,
-    PRIMARY KEY (`id_redactor_descripcion`),
-    UNIQUE KEY `id_product` (`id_product`),
-    KEY `id_producto` (`id_product`)
-    ) ENGINE=InnoDB AUTO_INCREMENT=558 DEFAULT CHARSET=utf8;
+        `id_redactor_descripcion` int(10) NOT NULL AUTO_INCREMENT,
+        `id_product` int(10) NOT NULL, 
+        `api` varchar(16) NOT NULL, # redacta-me o openai
+        `procesando` tinyint(1) NOT NULL,
+        `inicio_proceso` datetime NOT NULL,
+        `api_json` text, 
+        `en_cola` tinyint(1) NOT NULL,
+        `date_metido_cola` datetime NOT NULL,
+        `id_employee_metido_cola` int(10) NOT NULL, 
+        `date_eliminado_cola` datetime NOT NULL,
+        `id_employee_eliminado_cola` int(10) NOT NULL, 
+        `redactado` tinyint(1) NOT NULL,  
+        `redactado_api` varchar(16) NOT NULL, # redacta-me o openai, cuando se marca redactado se guarda aquí la api, porque 'api' puede cambiar de nuevo
+        `revisado` tinyint(1) NOT NULL,  
+        `date_redactado` datetime NOT NULL,
+        `id_employee_redactado` int(10) NOT NULL, 
+        `date_revisado` datetime NOT NULL,
+        `id_employee_revisado` int(10) NOT NULL,
+        `error` tinyint(1) NOT NULL,
+        `date_error` datetime NOT NULL,
+        `error_message` text NOT NULL,
+        `descripcion` text NOT NULL, 
+        `date_add` datetime NOT NULL,
+        `date_upd` datetime NOT NULL,
+        PRIMARY KEY (`id_redactor_descripcion`),
+        UNIQUE (`id_product`)
+        ) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8;
+
+        ALTER TABLE lafrips_redactor_descripcion ADD INDEX id_producto (id_product);
 
     */
 }

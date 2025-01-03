@@ -249,35 +249,6 @@ function start() {
     
     document.querySelector('.panel-heading').innerHTML = boton_cola;   
 
-    //26/12/2024 Vamos a modificar todo para que se pueda seleccionar la API con la que solictar la descripción, hasta ahora era redacta.me y vamos a añadir un GPT de Openai. Pondremos dos botones al cargar la pantalla, por defecto pulsado el de Openai, y si se pulsa el de Redactame se deshabilita el otro y viceversa.
-    var radiobutton_apis = `
-    <div class="col-lg-2 pull-right">
-        <div class="switch-container">
-            <input type="radio" id="radio_openai" name="switch_apis" value="openai" checked>
-            <label for="radio_openai" class="switch-label">OpenAI</label>
-
-            <input type="radio" id="radio_redactame" name="switch_apis" value="redactame">
-            <label for="radio_redactame" class="switch-label">Redacta.me</label>
-
-            <div class="slider"></div>
-        </div>
-    </div> 
-    `;    
-    
-    document.querySelector('.panel-heading').innerHTML += radiobutton_apis;      
-
-    //parece que al añadir de esta forma el checkbox no es detectado correctamente para el eventListener con change, lo que hacemos es poner el eventListener al panel-heading que ya existía, y preguntar sobre qué elemento es el evento    
-    document.querySelector('.panel-heading').addEventListener('change', function(e) {
-        if (e.target.matches('input[name="switch_apis"]')) {
-            console.log(`Seleccionada API: ${e.target.value}`);  
-            //si se cambia de api para los textos quiero "reiniciar" el panel lateral quitÃ¡ndolo
-            if (document.contains(document.querySelector('#div_producto'))) {
-                document.querySelector('#div_producto').remove();
-            }          
-        }
-    });
-       
-
     //Cargamos los SELECTs de Proveedores y fabricantes. Enviamos el id del select de modo que formamos #"id" concatenando en la respuesta ajax.
     datosSelect('fabricante');
     datosSelect('proveedor');    
@@ -687,9 +658,6 @@ function muestraListaProductos(productos, total_productos, pagina_actual) {
             var badge_redactado = '';
             var badge_revisado = '';         
 
-            //27/12/2024 Hay que mostrar cuando están en cola, con que api, el dato debe llegar desde el controlador, api_seleccionada
-            var api_seleccionada = producto.api_seleccionada;
-
             //ponemos badge en redactado y en revisado. 07/09/2023 añadimos Activo (activado. Badge success si si, danger si no). Redactado tendrá badge 'info' si aún no se ha hecho nada, 'warning' si está en lista o procesando y success si ya está redactado. Revisado tendrá 'info' si el producto aún no ha sido redactado, danger si ha sido redactado pero no revisado, y success cuando está redactado y revisado.     
             if (producto.indexado == 1) {
                 indexado = 'Si';
@@ -710,17 +678,9 @@ function muestraListaProductos(productos, total_productos, pagina_actual) {
                 redactado = 'Si';
                 badge_redactado = 'success';
             } else if (producto.redactado == 2) {
-                check_disabled = " disabled";                
+                check_disabled = " disabled";
+                redactado = 'En cola';
                 badge_redactado = 'warning';
-
-                if (api_seleccionada == 'redactame') {
-                    redactado = 'En cola<br><small>Redacta.me</small>';
-                } else if (api_seleccionada == 'openai') {
-                    redactado = 'En cola<br><small>OpenAI</small>';
-                } else {
-                    redactado = 'En cola<br><small>ERROR</small>';
-                }
-
             } else if (producto.redactado == 3) {                
                 redactado = 'Error';
                 badge_redactado = 'danger';
@@ -820,7 +780,7 @@ function muestraListaProductos(productos, total_productos, pagina_actual) {
         }     
     ) 
 
-    //añadimos al texto de panel-heading el número de productos totales que corresponden a los filtros, independientemente de los que se muestran por la paginación. 
+    //añadimos al texto de panel-heading el número de pedidos totales que corresponden a los filtros, independientemente de los que se muestran por la paginación. 
     //nos aseguramos de que no haya un span anterior con el número de productos 
     if (document.contains(document.querySelector('#num_productos'))) {
         document.querySelector('#num_productos').remove();
@@ -965,12 +925,9 @@ function meterColaBulk() {
 }
 
 //función que recibe como parámetro un array con el id_product del producto a meter en cola. Si se llamó desde meterColaBulk() el array podrá llevar varios ids. Llamará al controlador para hacer el insert (o update) en lafrips_redactor_descripcion
-//27/12/2024 Añadimos otro valor a enviar al controlador, la api seleccionada para utilizar en la redacción
 function masColaProducto(array_ids) {
     // console.log('cola producto '+e.currentTarget.id);
     console.log(array_ids);
-
-    let api_seleccionada = document.querySelector('input[name="switch_apis"]:checked').value;
 
     //mostramos spinner
     spinnerOn();
@@ -982,7 +939,6 @@ function masColaProducto(array_ids) {
     var dataObj = {};
 
     dataObj['productos'] = array_ids;    
-    dataObj['api_seleccionada'] = api_seleccionada;    
     
     $.ajax({
         url: 'index.php?controller=AdminRedactorDescripciones' + '&token=' + token + "&action=mas_cola_productos" + '&ajax=1' + '&rand=' + new Date().getTime(),
@@ -1014,14 +970,8 @@ function masColaProducto(array_ids) {
                         menosColaProducto(id_product); 
                     });  
 
-                    if (api_seleccionada == 'redactame') {
-                        var api_seleccionada_small = 'Redacta.me';
-                    } else if (api_seleccionada == 'openai') {
-                        var api_seleccionada_small = 'OpenAI';
-                    }
-
                     document.querySelector("#redactado_"+id_product).innerHTML = `
-                        <span class="badge badge-warning">En cola<br><small>${api_seleccionada_small}</small></span>
+                        <span class="badge badge-warning">En cola</span>
                     `;
 
                     document.querySelector("#product_checkbox_"+id_product).checked = false;
@@ -1203,7 +1153,7 @@ function masColaTraduccion(id_product) {
 
 }
 
-//al recibir en esta función primero hay que comprobar que la tabla lafrips_redactor_descripcion ya tenga una entrada para el producto cuyo botón se ha pulsado, para insertarla si no, se hará en el controlador al mismo tiempo que sacamos la info del producto
+//al recibir en esta función primero hay que comprobar que la tabla lafrips_redactor_descripcion ya tenga una entrada para el producto cuyyo botón se ha pulsado, para insertarla si no, se hará en el controlador al mismo tiempo que sacamos la info del producto
 function procesarProducto(e) {
     console.log('procesar producto '+e.currentTarget.id);
 
@@ -1283,23 +1233,12 @@ function muestraProducto(producto) {
         document.querySelector('#div_producto').remove();
     } 
 
-    //27/12/2024 Al añadir la posibilidad de utilizar Openai para las descripciones, vamos a mostrar el producto un poco diferente si es para una u otra api, comprobamos cual es la api seleccionada en el radiobutton de apis
-    let api_seleccionada_controlador = document.querySelector('input[name="switch_apis"]:checked').value;
-
-    console.log(`API seleccionada: ${api_seleccionada_controlador}`);  
-    
-    //si tenemos seleccionada redactame ocultaremos la línea de keywords y tono
-    let row_redactame = ' style = "display: none"';
-    if (api_seleccionada_controlador == 'redactame') {
-        row_redactame = "";
-    }
-
     const div_producto = document.createElement('div');
     div_producto.classList.add('clearfix','panel_sticky');
     div_producto.id = 'div_producto';
     document.querySelector('div#div_productos').appendChild(div_producto);
 
-    //tenemos que mostrar un row con info del producto, foto, referencia, etc. Si ha sido redactado antes, revisado, si está en cola o procesando, con avisos. Después un input con la info pasada a la API sacada de api_json si ya fue redactado, o con la descripción del producto, que sería lo que enviaremos a la API. Si la descripción tiene más de 500 caracteres se avisa. Mostramos también la descripción actual en otro input, esta coincidirá con el anterior input si el producto no ha sido redactado. Para Redacta.me habrá un select para seleccionar el "tono" a asignar a la api (persuasive, etc) por defecto Profesional, y un input para keywords, que son opcionales. Ambas cosas desaparecerán para OpenAI
+    //tenemos que mostrar un row con info del producto, foto, referencia, etc. Si ha sido redactado antes, revisado, si está en cola o procesando, con avisos. Después un input con la info pasada a la API sacada de api_json si ya fue redactado, o con la descripción del producto, que sería lo que enviaremos a la API. Si la descripción tiene más de 500 caracteres se avisa. Mostramos también la descripción actual en otro input, esta coincidirá con el anterior input si el producto no ha sido redactado. Habrá un select para seleccionar el "tono" a asignar a la api (persuasive, etc) por defecto ¿?
     //18/09/2024 redacta.me ha ampliado el límite de caracteres de la descripción de 500 a 5000
     //se puede guardar la descripción si se modifica, ya que esta pantalla sirve para pedir una nueva descripción o para revisarla, marcando botón de revisado.
 
@@ -1309,16 +1248,12 @@ function muestraProducto(producto) {
         var indexado = "NO";
     }
 
-    //30/12/2024 guardamos el dato de si hay una api de redacción seleccionada (si está en cola por ejemplo) y si ha sido redactado, con que api
-    var api_seleccionada_producto = producto.api_seleccionada;
-    var redactado_api = producto.redactado_api;
-
     var esta_procesando = "";
     var disable_procesando = "";
     var mensaje_procesando = "";
     if (producto.procesando == 1) {
         esta_procesando = `
-        <span id="procesando_badge" class="badge badge-danger" title="Este producto está siendo procesado, los botones están deshabilitados. Espera y recarga para continuar">Atención - Procesando - Api: <strong>${api_seleccionada_producto}</strong></span> ${producto.date_inicio_proceso}<br>        
+        <span id="procesando_badge" class="badge badge-danger" title="Este producto está siendo procesado, los botones están deshabilitados. Espera y recarga para continuar">Atención - Procesando</span> ${producto.date_inicio_proceso}<br>        
         `;
         //si el producto está procesandose deshabilitamos los botones
         disable_procesando = " disabled";
@@ -1339,7 +1274,7 @@ function muestraProducto(producto) {
     var esta_encola = "";
     if (producto.en_cola == 1) {
         esta_encola = `
-        <span id="en_cola_badge" class="badge badge-warning" title="Este producto está en la cola en espera de ser procesado">En Cola - Api: <strong>${api_seleccionada_producto}</strong></span> 
+        <span id="en_cola_badge" class="badge badge-warning" title="Este producto está en la cola en espera de ser procesado">En Cola</span> 
         ${producto.employee_metido_cola} - ${producto.date_metido_cola}<br>
         `;
     }
@@ -1347,12 +1282,12 @@ function muestraProducto(producto) {
     var esta_redactado = "";
     if ((producto.redactado == 1) && (producto.revisado == 1)) {
         esta_redactado = `
-        <span id="redactado_badge" class="badge badge-success" title="Este producto ya ha sido redactado y revisado">Redactado - Api: <strong>${redactado_api}</strong></span>
+        <span id="redactado_badge" class="badge badge-success" title="Este producto ya ha sido redactado y revisado">Redactado</span>
         ${producto.employee_redactado} - ${producto.date_redactado}<br>
         `;
     } else if ((producto.redactado == 1) && (producto.revisado == 0)) {
         esta_redactado = `
-        <span id="redactado_badge" class="badge badge-info" title="Este producto ya ha sido redactado">Redactado - Api: <strong>${redactado_api}</strong></span>
+        <span id="redactado_badge" class="badge badge-info" title="Este producto ya ha sido redactado">Redactado</span>
         ${producto.employee_redactado} - ${producto.date_redactado}<br>
         `;
     }
@@ -1360,11 +1295,11 @@ function muestraProducto(producto) {
     var esta_revisado = "";
     if ((producto.redactado == 1) && (producto.revisado == 1)) {
         esta_revisado = `
-        <span id="revisado_badge" class="badge badge-success" title="Este producto ya ha sido revisado">Revisado - Api: <strong>${api_seleccionada_producto}</strong></span>
+        <span id="revisado_badge" class="badge badge-success" title="Este producto ya ha sido revisado">Revisado</span>
         ${producto.employee_revisado} - ${producto.date_revisado}<br>
         `;
     } else if ((producto.redactado == 1) && (producto.revisado == 0)) {
-        esta_revisado = `<span id="revisado_badge" class="badge badge-warning" title="Este producto aún no ha sido revisado">No Revisado - Api: <strong>${api_seleccionada_producto}</strong></span><br>`;
+        esta_revisado = `<span id="revisado_badge" class="badge badge-warning" title="Este producto aún no ha sido revisado">No Revisado</span><br>`;
     } else {
         esta_revisado = "";
     } 
@@ -1421,14 +1356,9 @@ function muestraProducto(producto) {
     </div>
     `;
 
-    //si se hizo petición anterior, tenemos en producto.info_api lo que se envió en descripción en forma de objeto. Si hay contenido probamos a sacarlo primero para formato json  openai y sino para redactame, si aún así no sale nada pondremos la descripción de producto
+    //si se hizo petición anterior, tenemos en producto.info_api lo que se envió en descripción en forma de objeto
     if (producto.info_api) {
-        var descripcion_api = getApiDescription(producto.info_api);
-
-        if (!descripcion_api) {
-            descripcion_api = producto.descripcion;
-        }       
-        
+        var descripcion_api = producto.info_api.parameters.Description;
     } else {
         //si no tenemos nada ponemos la description_short
         var descripcion_api = producto.descripcion;
@@ -1439,7 +1369,6 @@ function muestraProducto(producto) {
     //08/03/2024 Añadimos un input hidden donde guardar si se genera descripción desde aquí con el botón procesar, de modo que al marcar revisar sepamos desde el controlador que estamos revisando una descripción generada en el momento y no una de la cola de redacción o simplemnte la descripción no generada por aPI
     //13/03/2024 Añadimos el id_product a todos los inputs y textareas para evitar un posible error en ocasiones, que aparentemente no se elimina el panel de un producto al mostrar otro y al pulsar revisar por ejemplo no recoje el textarea del producto del botón.
     //17/04/2024 Ponemos un botón de Cola Traducción junto al de activar el producto, que llamará vía Ajax a masColaTraducciones() para añadir producto a cola de traducciones.
-    //27/12/2024 Dependiendo de la api elegida para generar la descripción mostraremos keywords y tono (redactame) o no (openai)
     var api_descripcion = `
     <div class="panel clearfix panel_producto">
         <h3>INFO API y descripción${mensaje_procesando}</h3>
@@ -1457,7 +1386,7 @@ function muestraProducto(producto) {
                     <span id="caracteres_nombre_api_${producto.id_product}"></span>
                 </div>
             </div>
-            <div class="row row_api" ${row_redactame}>
+            <div class="row row_api">
                 <label for="input_keywords_api_${producto.id_product}" class="control-label col-sm-2 col-form-label col-form-label-sm">
                     <span title="Introduce palabras clave separadas por coma (opcional)" data-toggle="tooltip" class="label-tooltip" data-html="true">
                         Keywords
@@ -1483,7 +1412,7 @@ function muestraProducto(producto) {
             <div class="row">
                 <label for="textarea_descripcion_api_${producto.id_product}" class="control-label col-form-label col-form-label-sm">
                     <span title="Última petición a API o descripción actual. Max. 5000 caracteres" data-toggle="tooltip" class="label-tooltip" data-html="true">
-                        Instrucciones o datos del producto para enviar a la API
+                        Descripción del producto para enviar a la API
                     </span>
                     <span class="caracteres_descripcion_api" id="caracteres_descripcion_api_${producto.id_product}"></span>
                 </label>
@@ -1600,51 +1529,6 @@ function muestraProducto(producto) {
 
 }
 
-//función que devuelve la descripción almacenada en info_api (api_json), si la hay, buscando en el json para los casos de que sea de api redactame o api openai. 
-function getApiDescription(info_api) {
-    console.dir(info_api);
-    //primero probamos a sacar si fuera de Openai, si no contiene nada probamos con redactame, si no devolvemos null
-     //como el json no es simple hay que hacerlo más complicado. Necesitamos entrar en messages y ahí sacar el objeto con role = user, y dentro de esos sacar el objeto type = text, y de ahí sacar text. Si hubiera varios type text se podrían sacar todos usando filter en lugar de find: 
-    //var textos = user_role_messages ? user_role_messages.content.filter(c => c.type === "text").map(c => c.text) : [];
-    if (info_api.messages) {
-        var user_role_messages = info_api.messages.find(m => m.role === "user");
-        //tenemos el objeto del role user, buscamos uno con type text y le sacamos el text, si fuera null, ponemos la descripción actual del producto, auqnue sería un error
-        var descripcion_api = user_role_messages ? user_role_messages.content.find(c => c.type === "text").text : null;
-
-        if (descripcion_api) {
-            return descripcion_api;
-        }
-    }
-
-    //no hemos sacado descripción con json formato openai, probamos redactame
-    var descripcion_api = info_api.parameters.Description;
-
-    if(descripcion_api) {
-        return descripcion_api;
-    } else {
-        //no encontramos texto, devolvemos null
-        return null;
-    }
-
-    // var user_role_messages = info_api.messages.find(m => m.role === "user");
-    // //tenemos el objeto del role user, buscamos uno con type text y le sacamos el text, si fuera null, ponemos la descripción actual del producto, auqnue sería un error
-    // var descripcion_api = user_role_messages ? user_role_messages.content.find(c => c.type === "text").text : null;
-
-    // if (descripcion_api) {
-    //     return descripcion_api;
-    // } else {
-    //     //probamos con formato json redactame
-    //     descripcion_api = info_api.parameters.Description;
-
-    //     if(descripcion_api) {
-    //         return descripcion_api;
-    //     } else {
-    //         //no encontramos texto, devolvemos null
-    //         return null;
-    //     }
-    // }     
-}
-
 //función que es llamada al pulsar el boton_negrita y revisa si dentrodel textarea hay alguna selección de texto. Para ello busca selectionStart y selectionEnd dentro del textarea, si estos son diferentes es que hay algo seleccionado.
 //después ponemos el rango seleccionado a 0 de nuevo (es como resetear) para que si pulsamos de nuevo el botón ya no tenga nada seleccionado con setSelectionRange(0, 0) ya que si no si pulsas con algo seleccionado fuera del textarea sigue teniendo "en memoria" la anterior selección
 function getTextoNegrita(id_product) {
@@ -1742,7 +1626,6 @@ function activarProducto(id_product) {
 }
 
 //función que marca un producto como revisado y al dar por buena la descripción de producto la actualiza en lafrips_product_lang, junto con el nombre
-//no indicamos nada de las apis de redacción dado que se puede revisar un producto que acaba de ser redactado con una api y cambiar la api en el selector, o se puede revisar un producto que ha sido redactado con la cola y tampoco tiene que coincidir, de modo que al enviar el producto a redactar se guarda en api la api seleccionada y esa será la que cuente
 function revisaDescripcion(id_product) {
     console.log(document.querySelector("#textarea_descripcion_actual_producto_"+id_product).value);
 
@@ -1881,30 +1764,23 @@ function revisaDescripcion(id_product) {
 }
 
 //función que recoge los datos para enviar a la API, llama a esta y muestra el resultado
-//30/12/2024 deber recoger la api seleccionada para enviarla también al controlador
 function generaDescripcion(id_product) {
     console.log(id_product);
 
-    let api_seleccionada_controlador = document.querySelector('input[name="switch_apis"]:checked').value;
-
-    //recogemos valores del formulario destinado a la API, dependiendo de la api seleccionada, ya que openai no usa keywords ni tono. Tono recoge el value del select, que es la palabra en inglés como requiere la API. Keywords, si lleva algo, lo guardaremos como venga
-    let nombre = document.querySelector("#input_nombre_api_"+id_product).value;    
-    let descripcion = document.querySelector("#textarea_descripcion_api_"+id_product).value;
-    let keywords = '';
-    let tono = '';
-    if (api_seleccionada_controlador == 'redactame') {
-        keywords = document.querySelector("#input_keywords_api_"+id_product).value;
-        tono = document.querySelector("#select_tono_api_"+id_product).value;
-
-        //18/09/2024 redacta.me ha ampliado el límite de caracteres de la descripción de 500 a 5000
-        if (descripcion.length > 5000) {
-            showErrorMessage('La descripción a enviar a la API no puede tener más de 5000 caracteres');
-            return;
-        } else if (nombre.length > 50) {
-            showErrorMessage('El nombre a enviar a la API no puede tener más de 50 caracteres');
-            return;
-        }
-    }      
+    //recogemos valores del formulario destinado a la API. Tono recoge el value del select, que es la palabra en inglés como requiere la API. Keywords, si lleva algo, lo guardaremos como venga
+    const nombre = document.querySelector("#input_nombre_api_"+id_product).value;
+    const keywords = document.querySelector("#input_keywords_api_"+id_product).value;
+    const tono = document.querySelector("#select_tono_api_"+id_product).value;
+    const descripcion = document.querySelector("#textarea_descripcion_api_"+id_product).value;
+    
+    //18/09/2024 redacta.me ha ampliado el límite de caracteres de la descripción de 500 a 5000
+    if (descripcion.length > 5000) {
+        showErrorMessage('La descripción a enviar a la API no puede tener más de 5000 caracteres');
+        return;
+    } else if (nombre.length > 50) {
+        showErrorMessage('El nombre a enviar a la API no puede tener más de 50 caracteres');
+        return;
+    }
 
     //mostramos spinner
     spinnerOn();
@@ -1934,13 +1810,10 @@ function generaDescripcion(id_product) {
 
     var dataObj = {};
     dataObj['id_product'] = id_product;
-    dataObj['nombre'] = nombre;    
+    dataObj['nombre'] = nombre;
+    dataObj['keywords'] = keywords;
+    dataObj['tono'] = tono;
     dataObj['descripcion'] = descripcion;
-    dataObj['api_seleccionada'] = api_seleccionada_controlador;
-    if (api_seleccionada_controlador == 'redactame') {
-        dataObj['keywords'] = keywords;
-        dataObj['tono'] = tono;
-    }
 
     console.log(dataObj);
     //el token lo hemos sacado arriba del input hidden
@@ -1996,10 +1869,6 @@ function generaDescripcion(id_product) {
 
                 //el contenido de la descripción generada lo ponemos en el textarea_descripcion_actual_producto, pero de hecho no está guardado en Prestashop hasta que no se pulse revisado, de modo que si vovlemos cargar el panel del producto aparecerá lo que haya en Prestashop
                 document.querySelector("#textarea_descripcion_actual_producto_"+id_product).value = data.descripcion_api;
-                //02/01/2025 Si hemos utilizado la api OpenAI puede que recibamos también el nombre para el producto, en ese caso lo metermos en el input de title
-                if (data.titulo_producto !== undefined && data.titulo_producto != 0) {
-                    document.querySelector("#input_nombre_api_"+id_product).value = data.titulo_producto;
-                }
 
                 //08/03/2024 Cambiamos value de input hidden redactado_hidden_idproduct que indica que se acaba de genrar la descripción con la api
                 document.querySelector("#redactado_hidden_"+id_product).value = 1;

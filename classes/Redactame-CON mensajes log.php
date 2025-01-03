@@ -471,8 +471,8 @@ class Redactame
     }
 
     public static function getApiKey() {
-        //Obtenemos la key leyendo el archivo api.json donde hemos almacenado la contraseña para la API
-        $secrets_json = file_get_contents(dirname(__FILE__).'/../secrets/api.json');
+        //Obtenemos la key leyendo el archivo api_redactame.json donde hemos almacenado la contraseña para la API
+        $secrets_json = file_get_contents(dirname(__FILE__).'/../secrets/api_redactame.json');
         
         $secrets = json_decode($secrets_json, true);
 

@@ -24,25 +24,9 @@
 *}
 
 <div class="panel">
-	<h3><i class="icon icon-credit-card"></i> {l s='Redactor' mod='redactor'}</h3>
+	<h3><i class="icon icon-book"></i> {l s='Redactor' mod='redactor'}</h3>
 	<p>
-		<strong>{l s='Here is my new generic module!' mod='redactor'}</strong><br />
-		{l s='Thanks to PrestaShop, now I have a great module.' mod='redactor'}<br />
-		{l s='I can configure it using the following configuration form.' mod='redactor'}
-	</p>
-	<br />
-	<p>
-		{l s='This module will boost your sales!' mod='redactor'}
-	</p>
+		Utiliza el área de texto para ofrecer el contexto al GPT de OpenAI<br />		
+	</p>	
 </div>
 
-<div class="panel">
-	<h3><i class="icon icon-tags"></i> {l s='Documentation' mod='redactor'}</h3>
-	<p>
-		&raquo; {l s='You can get a PDF documentation to configure this module' mod='redactor'} :
-		<ul>
-			<li><a href="#" target="_blank">{l s='English' mod='redactor'}</a></li>
-			<li><a href="#" target="_blank">{l s='French' mod='redactor'}</a></li>
-		</ul>
-	</p>
-</div>

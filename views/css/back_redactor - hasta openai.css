@@ -100,85 +100,9 @@
   background-color: #00b50d;
   text-transform: uppercase;
 }
-
-/* botones deshabilitados para indicar la api de redacción a utilizar */
-#usar_openai {  
-  font-size: 16px;
-  border-color: black;
-  background-color: #933fdc;
-  /* text-transform: uppercase; */
-}
-
-#usar_openai:disabled, #usar_openai[disabled] {  
-  background-color: #933fdc !important;
-  opacity: 1;
-}
-
-#usar_redactame {  
-  font-size: 16px;
-  border-color: black;
-  background-color: #0064b5;
-  /* text-transform: uppercase; */
-}
-
-#usar_redactame:disabled, #usar_redactame[disabled] {  
-  background-color: #0064b5 !important;
-  opacity: 1;
-}
-
-/* Checkbox switch para cambiar de API */
-.switch-container {
-  display: flex;
-  position: fixed;
-  width: 200px;
-  height: 30px;
-  background-color: #ddd;
-  border-radius: 25px;
-  box-shadow: inset 0 0 4px rgba(0, 0, 0, 0.3);
-}
-
-.switch-container input[type="radio"] {
-  display: none;
-}
-
-.switch-label {
-  flex: 1;
-  text-align: center;
-  line-height: 30px;
-  cursor: pointer;
-  z-index: 2;
-  font-weight: bold;
-  color: #555;
-}
-
-.slider {
-  position: absolute;
-  top: 5px;
-  bottom: 5px;
-  left: 5px;
-  width: calc(50% - 10px);
-  border-radius: 20px;
-  transition: all 0.3s ease;
-}
-
-input#radio_redactame:checked ~ .slider {
-  left: calc(50% + 5px);
-  background-color: #4b8ff4; 
-}
-
-input#radio_openai:checked ~ .slider {
-  background-color: #b283f4; 
-}
-
-input[type="radio"]:checked + label {
-  color: white;
-}
-/* Fin switches */
-
-
 /* span junto a botón de añadir a cola, lo movemos a la derecha */
 #num_productos {
-  margin-left: 400px;
+  margin-left: 300px;
 
 }
 
@@ -187,7 +111,7 @@ input[type="radio"]:checked + label {
 */
 #div_producto  {
   padding-left: 30px !important;
-  margin-top: 30px !important;
+  
 }
 .panel_producto {   
   padding-bottom: 8px !important;
