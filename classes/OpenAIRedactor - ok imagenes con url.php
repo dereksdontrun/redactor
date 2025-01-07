@@ -32,66 +32,20 @@ require_once(dirname(__FILE__).'/RedactorTools.php');
 class OpenAIRedactor
 {   
     //función que recibe los parámetros para enviar a la API de OpenAI y llama a la función que ejecuta la petición con el json preparado.
-    //en principio llamamos a esta función desde el controlador AdminRedactorDescripciones.php y desde ColaDescripciones.php. Añadimos el parámetro opcional $imagenes, que sería un array con urls, para cuando utilicemos esta función desde el creador de productos, que pueda traer las imágenes de los proveedores, aunque para poder utilizar el id_product el producto ya debe existir. Se podrá utilizar de otra manera
-    //07/01/2025 Como por ahora no puedo llamar a la api con urls sino con base64, pongo un parámetro en la función $base64 = true por defecto, para quitarlo facilmente si lo soluciono 
-    public static function apiOpenAISolicitudDescripcion($parametros, $imagenes = null, $base64 = true) {
+    //en principio llamamos a esta función desde el controlador AdminRedactorDescripciones.php y desde ColaDescripciones.php. Añadimos el parámetro opcional $imagenes, que sería un array con urls, para cuando utilicemos esta función desde el creador de productos, que pueda traer las imágenes de los proveedores, aunque para poder utilizar el id_product el producto ya debe existir. Se podrá utilizar de otra manera 
+    public static function apiOpenAISolicitudDescripcion($parametros, $imagenes = null) {
         $id_product = $parametros["id_product"];
         $api_title = $parametros["title"];
-        $api_description = $parametros["description"];                
-
-        //hemos guardado con la configuración del módulo el system role context en una variable llamada REDACTOR_OPENAI_SYSTEM_ROLE_CONTEXT
-        // $system_role_context = "Eres un redactor experto en SEO especializado en productos de merchandising. Tu tarea es escribir descripciones persuasivas y atractivas para regalos coleccionables y productos geek, evitando términos que puedan tener connotaciones negativas en España, como 'fanático' o 'friki'. También describirás productos como camisetas, zapatillas, bolsos y otros complementos, a menudo relacionados con elementos populares como superheroes, dibujos animados, personajes de televisión y cine, etc. Prioriza destacar detalles clave del producto, como materiales, uso, características especiales y lo que lo hace único. Siempre optimiza los textos para buscadores, empleando palabras clave relevantes y generando títulos llamativos y efectivos para SEO. Puedes usar imágenes del producto y cualquier dato adicional proporcionado para crear contenido perfectamente adaptado a la marca y al público objetivo. Sé profesional, creativo y enfócate en captar la atención del lector. Por favor no metas en el texto emojis para evitar errores. Ofrecerás la respuesta con formato html válido para insertar en una base de datos, sin usar saltos de línea (\\n). Las etiquetas html permitidas son strong, h1, h2, br, p, ul, li, i. Aplicarás la etiqueta de negrita a las palabras clave, las cuales no incluirás por separado en tu descripción. Muy importante, lo primero que harás será analizar las imágenes recibidas y generar una descripción muy detallada del producto que muestran, mencionando formas, colores y otros rasgos relevantes. A dicha descripción puedes añadirle los datos adicionales que recibirás del rol de usuario y que pueden consistir en marcas, tamaños, fabricantes, materiales o cualquier otra información interesante, pero lo más importante es describir las imágenes recibidas como si el cliente no pudiera ver. Otro punto a destacar es que deberás orientar la descripción del producto al cliente potencial. Por ejemplo, si el producto a describir es un producto orientado a los niños, como juguetes o ropa de niño o bebé, la descripción y el SEO ira orientado a convencer a las madres de los niños. Si el producto es una figura de colección la descripción deberá ir dirigida a un cliente coleccionista. No confundas juguetes con figuras de colección. Si el producto tiene matices de indole sexual o erótica nunca dirijas la descripción a un cliente potencial infantil ya que se trata de un producto para adultos o coleccionistas.";
-
-        $system_role_context = Configuration::get('REDACTOR_OPENAI_SYSTEM_ROLE_CONTEXT');
-
-        if (!$system_role_context || $system_role_context == '') {
-            $error_message = 'Error, no obtenido contexto para rol de sistema para OpenAI de tabla de configuración';
-
-            RedactorTools::updateTablaRedactorRedactado(0, $id_product, pSQL($error_message));        
-            
-            return array(
-                "result" => 0,
-                "message" => pSQL($error_message)
-            );
-        }
-
-        // $user_prompt = "Describe el producto de las fotos para un comercio online. Más información del producto: ".$api_description;
-        $user_prompt = $api_title.' '.$api_description;
-
-        //preparamos parámetros POST en json para la api       
-        $array_user = array();
-
-        $array_user[] = array(
-            "type" => "text",
-            "text" => $user_prompt
-        );
-      
+        $api_description = $parametros["description"];     
+        
+        $api_imagenes = array();
         //obtenemos hasta 6 imágenes del producto
-        //05/01/2025 Por algún motivo las url no las puede leer gpt directamente de nuestro servidor (son públicas) mientras averiguamos si es un problema de permisos o CDN, etc ya que en test si que puede, lo que hacemos es utilizar las url para descargarlas con file_get_content y luego convertirlas a base64, lo cual si que lee. Se envía como si fuera la url
         if ($imagenes !== null) {
             foreach ($imagenes AS $imagen) {
-
-                if ($base64) {
-                    if (($imagen_api = OpenAIRedactor::urlToBase64($imagen)) == false) {
-                        $error_message = 'Error convirtiendo imágenes a base64 para producto id_product '.$id_product;
-    
-                        RedactorTools::updateTablaRedactorRedactado(0, $id_product, pSQL($error_message));        
-                        
-                        return array(
-                            "result" => 0,
-                            "message" => pSQL($error_message)
-                        );
-                    }
-                } else {
-                    $imagen_api = $imagen;
-                }
-                
-
-                $array_user[] = array(
+                $api_imagenes[] = array(
                     "type" => "image_url",
                     "image_url" => array(
-                        // "url" => "https://".$image_url
-                        "url" => $imagen_api
+                        "url" => $imagen
                     ),
                 );
             }
@@ -120,40 +74,97 @@ class OpenAIRedactor
                     $product_link = $link->getProductLink($product, $product->link_rewrite, null, null, 1, 1);	                    
                     //imagen		
                     $image_link = new Link;//because getImageLInk is not static function
-                    //el link obtenido no lleva http así que lo añadimos
-                    $image_url = "https://".$image_link->getImageLink($product->link_rewrite, $id_image, 'thickbox_default');
+                    $image_url = $image_link->getImageLink($product->link_rewrite, $id_image, 'thickbox_default');
 
-                    //pasamos a base64 si es necesario
-                    if ($base64) {
-                        if (($imagen_api = OpenAIRedactor::urlToBase64($image_url)) == false) {
-                            $error_message = 'Error convirtiendo imágenes a base64 para producto id_product '.$id_product;
+                    $api_imagenes[] = array(
+                        "type" => "image_url",
+                        "image_url" => array(
+                            "url" => $image_url
+                        ),
+                    );
+                }
+            }
+        }        
 
-                            RedactorTools::updateTablaRedactorRedactado(0, $id_product, pSQL($error_message));        
-                            
-                            return array(
-                                "result" => 0,
-                                "message" => pSQL($error_message)
-                            );
-                        }
-                    } else {
-                        $imagen_api = $image_url;
-                    }                    
-    
+        //hemos guardado con la configuración del módulo el system role context en una variable llamada REDACTOR_OPENAI_SYSTEM_ROLE_CONTEXT
+        // $system_role_context = "Eres un redactor experto en SEO especializado en productos de merchandising. Tu tarea es escribir descripciones persuasivas y atractivas para regalos coleccionables y productos geek, evitando términos que puedan tener connotaciones negativas en España, como 'fanático' o 'friki'. También describirás productos como camisetas, zapatillas, bolsos y otros complementos, a menudo relacionados con elementos populares como superheroes, dibujos animados, personajes de televisión y cine, etc. Prioriza destacar detalles clave del producto, como materiales, uso, características especiales y lo que lo hace único. Siempre optimiza los textos para buscadores, empleando palabras clave relevantes y generando títulos llamativos y efectivos para SEO. Puedes usar imágenes del producto y cualquier dato adicional proporcionado para crear contenido perfectamente adaptado a la marca y al público objetivo. Sé profesional, creativo y enfócate en captar la atención del lector. Por favor no metas en el texto emojis para evitar errores. Ofrecerás la respuesta con formato html válido para insertar en una base de datos, sin usar saltos de línea (\\n). Las etiquetas html permitidas son strong, h1, h2, br, p, ul, li, i. Aplicarás la etiqueta de negrita a las palabras clave, las cuales no incluirás por separado en tu descripción. Muy importante, lo primero que harás será analizar las imágenes recibidas y generar una descripción muy detallada del producto que muestran, mencionando formas, colores y otros rasgos relevantes. A dicha descripción puedes añadirle los datos adicionales que recibirás del rol de usuario y que pueden consistir en marcas, tamaños, fabricantes, materiales o cualquier otra información interesante, pero lo más importante es describir las imágenes recibidas como si el cliente no pudiera ver. Otro punto a destacar es que deberás orientar la descripción del producto al cliente potencial. Por ejemplo, si el producto a describir es un producto orientado a los niños, como juguetes o ropa de niño o bebé, la descripción y el SEO ira orientado a convencer a las madres de los niños. Si el producto es una figura de colección la descripción deberá ir dirigida a un cliente coleccionista. No confundas juguetes con figuras de colección. Si el producto tiene matices de indole sexual o erótica nunca dirijas la descripción a un cliente potencial infantil ya que se trata de un producto para adultos o coleccionistas.";
+
+        $system_role_context = Configuration::get('REDACTOR_OPENAI_SYSTEM_ROLE_CONTEXT');
+
+        if (!$system_role_context || $system_role_context == '') {
+            $error_message = 'Error, no obtenido contexto para rol de sistema para OpenAI de tabla de configuración';
+
+            RedactorTools::updateTablaRedactorRedactado(0, $id_product, pSQL($error_message));        
+            
+            return array(
+                "result" => 0,
+                "message" => pSQL($error_message)
+            );
+        }
+
+        // $user_prompt = "Describe el producto de las fotos para un comercio online. Más información del producto: ".$api_description;
+        $user_prompt = $api_title.' '.$api_description;
+
+        //preparamos parámetros POST en json para la api       
+        $array_user = array();
+
+        $array_user[] = array(
+            "type" => "text",
+            "text" => $user_prompt
+        );
+
+        
+        //obtenemos hasta 6 imágenes del producto
+        if ($imagenes !== null) {
+            foreach ($imagenes AS $imagen) {
+                $array_user[] = array(
+                    "type" => "image_url",
+                    "image_url" => array(
+                        "url" => $imagen
+                    ),
+                );
+            }
+        } else {
+            //no vienen imágenes en los parámetros, buscamos las del producto, hasta 6, para ello sacamos de lafrips_images hasta 6 id_image
+            $sql_images = "SELECT id_image FROM lafrips_image WHERE id_product = $id_product ORDER BY cover DESC LIMIT 6";
+
+            $images = Db::getInstance()->executeS($sql_images);   
+
+            if (count($images) < 1) {
+                $error_message = 'Error, no obtenidas imágenes para producto id_product '.$id_product;
+
+                RedactorTools::updateTablaRedactorRedactado(0, $id_product, pSQL($error_message));        
+                
+                return array(
+                    "result" => 0,
+                    "message" => pSQL($error_message)
+                );
+            } else {
+                foreach ($images AS $image) {
+                    $id_image = $image['id_image'];
+
+                    $link = new Link();								
+						
+                    $product = new Product((int)$id_product, false, 1, 1);
+                    $product_link = $link->getProductLink($product, $product->link_rewrite, null, null, 1, 1);	                    
+                    //imagen		
+                    $image_link = new Link;//because getImageLInk is not static function
+                    $image_url = $image_link->getImageLink($product->link_rewrite, $id_image, 'thickbox_default');
+
                     $array_user[] = array(
                         "type" => "image_url",
                         "image_url" => array(
-                            // "url" => "https://".$image_url
-                            "url" => $imagen_api
+                            "url" => "https://".$image_url
                         ),
-                    );                    
+                    );
                 }
             }
         }     
 
         //obtenemos los valores de modelo, max_tokens y temperature de la tabla de configuración, con valores por defecto si no hubiera
         $model = Configuration::get('REDACTOR_OPENAI_MODEL', 'gpt-4o');
-        $max_tokens = (int)Configuration::get('REDACTOR_OPENAI_MAX_TOKENS', 1000);
-        $temperature = (float)Configuration::get('REDACTOR_OPENAI_TEMPERATURE', 0.7);
+        $max_tokens = Configuration::get('REDACTOR_OPENAI_MAX_TOKENS', 1000);
+        $temperature = Configuration::get('REDACTOR_OPENAI_TEMPERATURE', 0.7);
 
         $array = array(
             "model" => $model,
@@ -173,27 +184,7 @@ class OpenAIRedactor
 
         $array_json = json_encode($array);
 
-        //para guardar el json en la base de datos, si hemos convertido a base64 no queremos guardar ese código, pondremos "imagen convertida base64" antes de codificar a json
-        if ($base64) {
-            if (isset($array['messages'])) {
-                foreach ($array['messages'] as &$message) {
-                    if ($message['role'] === 'user' && isset($message['content'])) {
-                        foreach ($message['content'] as &$content) {
-                            if ($content['type'] === 'image_url' && isset($content['image_url']['url'])) {
-                                // Reemplazar el contenido por un texto más simple
-                                $content['image_url']['url'] = 'imagen convertida a base64';
-                            }
-                        }
-                    }
-                }
-            }
-
-            $array_json_base64 = json_encode($array, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-
-            $array_json_insert = pSQL($array_json_base64);
-        } else {
-            $array_json_insert = pSQL($array_json);
-        }        
+        $array_json_insert = pSQL($array_json);
 
         //marcamos la tabla redactor_descripcion como procesando
         if (!$id_employee = Context::getContext()->employee->id) {
@@ -237,50 +228,8 @@ class OpenAIRedactor
         return $description;
     }
 
-    //función para convertir imágenes en base64
-    public static function urlToBase64($url) {
-        $imageData = file_get_contents($url);  // Descarga la imagen
-        if ($imageData === false) {
-            return false;
-        }
-        $base64 = base64_encode($imageData);  // Codifica a base64
-        $mimeType = getimagesizefromstring($imageData)['mime'];  // Obtiene el tipo MIME
-        return "data:$mimeType;base64,$base64";  // Formato final
-    }
-
     public static function apiCallDescription ($post_fields, $id_product) {
         $api_key = OpenAIRedactor::getApiKey();
-
-        // $array = array(
-        //     "model" => "gpt-4o",
-        //     "messages" => array(
-        //         array(
-        //             "role" => "system",
-        //             "content" => "Eres un redactor experto en SEO especializado en productos de merchandising. Tu tarea es escribir descripciones persuasivas y atractivas para regalos coleccionables y productos geek, evitando términos que puedan tener connotaciones negativas en España, como 'fanático' o 'friki'. También describirás productos como camisetas, zapatillas, bolsos y otros complementos, a menudo relacionados con elementos populares como superheroes, dibujos animados, personajes de televisión y cine, etc. Prioriza destacar detalles clave del producto, como materiales, uso, características especiales y lo que lo hace único. Siempre optimiza los textos para buscadores, empleando palabras clave relevantes y generando títulos llamativos y efectivos para SEO. Puedes usar imágenes del producto y cualquier dato adicional proporcionado para crear contenido perfectamente adaptado a la marca y al público objetivo. Sé profesional, creativo y enfócate en captar la atención del lector. Por favor no metas en el texto emojis para evitar errores. Ofrecerás la respuesta con formato html válido para insertar en una base de datos, sin usar saltos de línea (\n). Las etiquetas html permitidas son strong, h1, h2, br, p, ul, li, i. Aplicarás la etiqueta de negrita a las palabras clave, las cuales no incluirás por separado en tu descripción. Muy importante, lo primero que harás será analizar las imágenes recibidas y generar una descripción muy detallada del producto que muestran, mencionando formas, colores y otros rasgos relevantes. A dicha descripción puedes añadirle los datos adicionales que recibirás del rol de usuario y que pueden consistir en marcas, tamaños, fabricantes, materiales o cualquier otra información interesante, pero lo más importante es describir las imágenes recibidas como si el cliente no pudiera ver. Otro punto a destacar es que deberás orientar la descripción del producto al cliente potencial. Por ejemplo, si el producto a describir es un producto orientado a los niños, como juguetes o ropa de niño o bebé, la descripción y el SEO ira orientado a convencer a las madres de los niños. Si el producto es una figura de colección la descripción deberá ir dirigida a un cliente coleccionista. No confundas juguetes con figuras de colección. Si el producto tiene matices de indole sexual o erótica nunca dirijas la descripción a un cliente potencial infantil ya que se trata de un producto para adultos o coleccionistas."
-        //         ),
-        //         array(
-        //             "role" => "user",
-        //             "content" => array(
-        //                 array(
-        //                     "type" => "text",
-        //                     "text" => "fabricante The Noble Collection, basada en película El Señor de los Anillos., personaje Sauron.
-        //                         Serie de figuras BendyFigs,unos 19cm de altura, artículo de colección o de regalo"
-        //                  ),
-        //                  array(
-        //                     "type" => "image_url",
-        //                     "image_url" => array(
-        //                         "url" => "https://lafrikileria.com/test/83905-thickbox_default/figura-bendyfigs-sauron-el-senor-de-los-anillos-19-cm.jpg"
-        //                     ),
-        //                  )
-        //             )
-        //         )
-        //     ),
-        //     "max_tokens" => 1000,
-        //     "temperature" => 0.7
-        // );
-
-        // $post_fields = json_encode($array);
-
     
         $curl = curl_init();
     

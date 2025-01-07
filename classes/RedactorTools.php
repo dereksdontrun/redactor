@@ -45,12 +45,13 @@ class RedactorTools
             $product->update();                      
 
             //guardamos la descripción por ahora para analizar errores
-            $sql_descripcion = "UPDATE lafrips_redactor_descripcion
-            SET                
-            descripcion = '$descripcion'
-            WHERE id_product = $id_product";
+            //07/01/2025, de moemnto dejamos de guardar si no hay error
+            // $sql_descripcion = "UPDATE lafrips_redactor_descripcion
+            // SET                
+            // descripcion = '$descripcion'
+            // WHERE id_product = $id_product";
 
-            Db::getInstance()->executeS($sql_descripcion);   
+            // Db::getInstance()->executeS($sql_descripcion);   
             
             return true;
 
