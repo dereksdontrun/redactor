@@ -31,29 +31,15 @@ class RedactorTools
 
     //28/02/2024 Función que guardará la descripción generada, ya sea si el producto se ha procesado en Cola de descipciones, o si se ha procesado visualmente desde el front del módulo (controlador), en cuyo caso también recibirá el nombre del producto por si el usuario lo ha modificado. No debe marcar Redactado, eso debe hacerse solo cuando se genera la descripción con API, ya sea en cola de redacción o manualmente desde el front.
     //damos la opción del parámtreo nombre vacío porque el nombre por cola de redacción no se modifica, pero manualmente si se puede cambiar.    
-    public static function actualizaProducto($id_product, $id_lang, $descripcion, $nombre = "", $descripcion_categoria = "", $metatitulo = "", $metadescripcion = "") {
-            // $parametros = ['id_product' => $id_product, 'id_lang' => $id_lang,'descripcion' => $descripcion,'nombre' => $nombre,'descripcion_categoria' => $descripcion_categoria,'metatitulo' => $metatitulo,'metadescripcion' => $metadescripcion];
-        // file_put_contents(__DIR__ . "/actualizaProducto.txt", print_r($parametros, true), FILE_APPEND);
+    public static function actualizaProducto($id_product, $descripcion, $nombre = "") {
         //instanciamos el producto para actualizar descripción y/o nombre, solo para id_lang 1
         $product = new Product($id_product);
         // para descripciones cuando solo queremos afectar a un lenguaje
-        $product->description_short[$id_lang] = $descripcion;  
+        $product->description_short[1] = $descripcion;  
 
         if ($nombre !== "") {
-            $product->name[$id_lang] = $nombre;
-        }  
-        
-        if ($nombre !== "") {
-            $product->description[$id_lang] = $descripcion_categoria;
-        }  
-
-        if ($nombre !== "") {
-            $product->meta_title[$id_lang] = $metatitulo;
-        }  
-
-        if ($nombre !== "") {
-            $product->meta_description[$id_lang] = $metadescripcion;
-        }  
+            $product->name[1] = $nombre;
+        }        
 
         try {
             $product->update();                      
@@ -65,7 +51,7 @@ class RedactorTools
             // descripcion = '$descripcion'
             // WHERE id_product = $id_product";
 
-            // Db::getInstance()->execute($sql_descripcion);   
+            // Db::getInstance()->executeS($sql_descripcion);   
             
             return true;
 
@@ -80,7 +66,7 @@ class RedactorTools
             descripcion = '$descripcion'
             WHERE id_product = $id_product";
 
-            Db::getInstance()->execute($sql_descripcion); 
+            Db::getInstance()->executeS($sql_descripcion); 
 
             return $error_message;
         }
@@ -132,7 +118,7 @@ class RedactorTools
         date_upd = NOW()
         WHERE id_product = $id_product";
 
-        Db::getInstance()->execute($sql_update_redactado); 
+        Db::getInstance()->executeS($sql_update_redactado); 
 
         return;
     }
@@ -160,25 +146,9 @@ class RedactorTools
         date_upd = NOW()
         WHERE id_product = $id_product";
 
-        Db::getInstance()->execute($sql_update_revisado); 
+        Db::getInstance()->executeS($sql_update_revisado); 
 
         return;
-    }
-
-    //28/05/2025 función para almacenar en tabla la info que queremos pasar a la api sobre el producto
-    public static function actualizaInfoParaApi($id_product, $info_para_api) {        
-        
-        $sql_update_info_para_api = "UPDATE lafrips_redactor_descripcion
-        SET                
-        info_para_api = '$info_para_api',                   
-        date_upd = NOW()
-        WHERE id_product = $id_product";
-
-        if (Db::getInstance()->execute($sql_update_info_para_api)) {
-            return true;
-        }
-
-        return 'Error haciendo UPDATE de info_para_api';
     }
     
 }

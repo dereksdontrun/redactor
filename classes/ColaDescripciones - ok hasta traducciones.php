@@ -2,7 +2,7 @@
 
 require_once(dirname(__FILE__).'/../../../config/config.inc.php');
 require_once(dirname(__FILE__).'/../../../init.php');
-// require_once(dirname(__FILE__).'/Redactame.php');
+require_once(dirname(__FILE__).'/Redactame.php');
 require_once(dirname(__FILE__).'/OpenAIRedactor.php');
 require_once(dirname(__FILE__).'/RedactorTools.php');
 
@@ -46,8 +46,7 @@ class ColaDescripciones
     public $descripcion_api;
     public $info_api = array();
 
-    //28/05/2025 solo operamos con openai ahora
-    public $api_seleccionada = 'openai';
+    public $api_seleccionada;
 
     public function __construct() {
         $this->inicio = time();
@@ -66,7 +65,7 @@ class ColaDescripciones
             $this->info_api = null;
             $resultado_api = null;
             $this->descripcion_api = null;
-            // $this->api_seleccionada = null;
+            $this->api_seleccionada = null;
             
             $get_info = $this->getProductInfo();
 
@@ -81,57 +80,45 @@ class ColaDescripciones
                 }
 
                 //info de producto obtenida, enviamos a la clase de la API correspondiente
-                //ya no utilizamos Redactame
-                // if ($this->api_seleccionada == 'redactame') {
-                //     $resultado_api = Redactame::apiRedactameSolicitudDescripcion($this->info_api);
+                if ($this->api_seleccionada == 'redactame') {
+                    $resultado_api = Redactame::apiRedactameSolicitudDescripcion($this->info_api);
 
-                // } elseif ($this->api_seleccionada == 'openai') {
-                //     $resultado_api = OpenAIRedactor::apiOpenAISolicitudDescripcion($this->info_api);
+                } elseif ($this->api_seleccionada == 'openai') {
+                    $resultado_api = OpenAIRedactor::apiOpenAISolicitudDescripcion($this->info_api);
 
-                // }         
-                
-                $resultado_api = OpenAIRedactor::apiOpenAISolicitudDescripcion($this->info_api);
+                }                 
 
                 // if ($resultado_api["curl_info"]) {
                 //     file_put_contents($this->log_file, date('Y-m-d H:i:s').' - cURL Info: '.$resultado_api["curl_info"].PHP_EOL, FILE_APPEND);
                 // }                
 
-                //22/05/2025 $resultado debe contener title, description_short, description, meta_title, meta_description
                 if ($resultado_api["result"] == 1) {
                     //tenemos una descripción, supuestamente correcta, o al menos la API no dió error. La tabla ya ha sido actualizada 
-                    foreach ($resultado_api['message'] AS $index => $textos) {
-                        switch ($index) {
-                            case 'es':
-                                $id_lang = 1;
-                                break;
-                            case 'en':
-                                $id_lang = 11;
-                                break;
-                            case 'fr':
-                                $id_lang = 12;
-                                break;
-                            case 'pt':
-                                $id_lang = 18;
-                                break;
-                        }
+                    $this->descripcion_api = $resultado_api["message"];
 
-                        //guardamos el resultado actualizando el producto.                  
-                        if (($retorno_actualiza_producto = RedactorTools::actualizaProducto($this->info_api["id_product"], $id_lang, $textos['description_short'], $textos['title'],  $textos['description'], $textos['meta_title'], $textos['meta_description'])) === true) {
-                            //marcamos redactado
-                            RedactorTools::updateTablaRedactorRedactado(1, $this->info_api["id_product"]);
+                    //si se utilizó la api de Openai puede que hayamos recibido también el nombre o título para el producto, si es así lo enviaremos como parámetro.
+                    if (isset($resultado_api['titulo'])) {
+                        $titulo_producto = $resultado_api['titulo'];
+                    } else {
+                        $titulo_producto = "";
+                    }
 
-                            file_put_contents($this->log_file, date('Y-m-d H:i:s').' - Descripción generada y guardada para id_product '.$this->info_api["id_product"].' con API '.ucfirst($this->api_seleccionada).PHP_EOL, FILE_APPEND);
-                        } else { 
-                            //marcamos error y quitamos redactado, e insertamos el mensaje de error de excepción devuelto
-                            $retorno_actualiza_producto = pSQL($retorno_actualiza_producto);
+                    $this->contador_correctos++;
 
-                            RedactorTools::updateTablaRedactorRedactado(0, $this->info_api["id_product"], $retorno_actualiza_producto);              
+                    //guardamos el resultado actualizando el producto. Al hacerlo por cola no se modifica el nombre y no enviamos el parámetro a actualizaProducto(), que devolverá true si va bien y un mensaje de error si no.                    
+                    if (($retorno_actualiza_producto = RedactorTools::actualizaProducto($this->info_api["id_product"], $this->descripcion_api, $titulo_producto)) === true) {
+                        //marcamos redactado
+                        RedactorTools::updateTablaRedactorRedactado(1, $this->info_api["id_product"]);
 
-                            file_put_contents($this->log_file, date('Y-m-d H:i:s').' - Error: Descripción generada NO guardada para id_product '.$this->info_api["id_product"].' con API '.ucfirst($this->api_seleccionada).' - '.$retorno_actualiza_producto.PHP_EOL, FILE_APPEND);
-                        }
-                    }                    
+                        file_put_contents($this->log_file, date('Y-m-d H:i:s').' - Descripción generada y guardada para id_product '.$this->info_api["id_product"].' con API '.ucfirst($this->api_seleccionada).PHP_EOL, FILE_APPEND);
+                    } else { 
+                        //marcamos error y quitamos redactado, e insertamos el mensaje de error de excepción devuelto
+                        $retorno_actualiza_producto = pSQL($retorno_actualiza_producto);
 
-                    $this->contador_correctos++;                    
+                        RedactorTools::updateTablaRedactorRedactado(0, $this->info_api["id_product"], $retorno_actualiza_producto);              
+
+                        file_put_contents($this->log_file, date('Y-m-d H:i:s').' - Error: Descripción generada NO guardada para id_product '.$this->info_api["id_product"].' con API '.ucfirst($this->api_seleccionada).' - '.$retorno_actualiza_producto.PHP_EOL, FILE_APPEND);
+                    }
                     
                 } else {
                     file_put_contents($this->log_file, date('Y-m-d H:i:s').' - Error generando descripción para id_product '.$this->info_api["id_product"].' con API '.ucfirst($this->api_seleccionada).PHP_EOL, FILE_APPEND);
@@ -177,10 +164,8 @@ class ColaDescripciones
             //18/09/2024 redacta.me ha ampliado el límite de caracteres de la descripción de 500 a 5000
             //02/01/2025 Añadimos OpenAI para sacar descripciones, de modo que en lafrips_redactor_descripcion hemos añadido el campo 'api' donde tenemos la api que queremos utilizar. 
             //Para Redacta.me CORTAREMOS EN SU CLASE al límite que ponen, enviamos texto completo
-            //22/05/2025 Añadimos el contenido de description que debe ser el nombre y enlace a la categoría principal
-            //28/05/2025 A partir de ahora, además de solo usar openai, guardaremos la info que enviamos a la api, lo que sería la descripción corta caundo aún no se ha redactado, en un campo de la bd, pudiendo modificar ese texto desde el controlador y guardarlo. Es el campo info_para_api, que la primera vez estará vacío como con api_json. Por tanto, ya no necesitaríamos sacar api_json para obtener el texto, y podemos actualizar api_json cada vez que solicitemos redacción.
 
-            $sql_info_producto = "SELECT name AS nombre, description_short AS descripcion, red.info_para_api AS info_para_api
+            $sql_info_producto = "SELECT name AS nombre, description_short AS descripcion, red.api AS api_seleccionada, red.api_json AS api_json 
             FROM lafrips_product_lang pla
             JOIN lafrips_redactor_descripcion red ON red.id_product = pla.id_product
             WHERE pla.id_lang = 1 
@@ -188,13 +173,33 @@ class ColaDescripciones
 
             $info_producto = Db::getInstance()->getRow($sql_info_producto);
 
-            //si hay info_para_api almacenado sacamos la descripción de ahí, sino del producto
-            if ($info_producto['info_para_api'] && $info_producto['info_para_api'] != "") {  
-                //si hemos encontrado algo lo guardamos como descripcion, sino lo dejamos como estaba, con la del producto
-                $info_producto['descripcion'] = $info_producto['info_para_api'];
-                               
+            //si hay json almacenado sacamos la descripción que se enió la última vez, del objeto resultante de jsondecode, sino enviamos la que tenga el producto. Para sacar ese dato de api_json vamos a intentar sacar para las dos apis a día de hoy, porque si hubieramos solicitado una descripción por ejemplo con redacta.me y por tanto tendríamos en api_json un formato json adecuado a dicha api, y ahora metemos el mismo producto en cola para OpenAI, el campo 'api' ahora sería openai pero el formato json sería el de redactame, de modo que probamos a sacar la info de la api de ambas formas, y nos quedamos la que no sea null, y si no hay api_json usamos la descripción actual del producto.
+            //si no hay nada en 'api' no podemos seguir al no saber qué api usar
+            if (!$info_producto['api_seleccionada'] || $info_producto['api_seleccionada'] == '') {
+                $sql_error = "UPDATE lafrips_redactor_descripcion
+                SET
+                error = 1, 
+                date_upd = NOW()
+                WHERE id_product = $id_product";
+
+                Db::getInstance()->executeS($sql_error);  
+
+                file_put_contents($this->log_file, date('Y-m-d H:i:s').' - Error obteniendo Api seleccionada para redacción para id_product '.$id_product.PHP_EOL, FILE_APPEND);
+
+                //devolvemos 'error', simplemente porque no es ni true ni false, de modo que continuará con el do - while
+                return 'error';
             } 
-            
+
+            if ($info_producto['api_json']) {
+                //obtenemos el texto utilizado la última vez para enviar a la api que fuera
+                $descripcion_api = $this->getApiDescription($info_producto['api_json']);
+
+                //si hemos encontrado algo lo guardamos como descripcion, sino lo dejamos como estaba, con la del producto
+                if ($descripcion_api) {
+                    $info_producto['descripcion'] = $descripcion_api;
+                }                
+            } 
+
             if (!$info_producto['nombre'] || !$info_producto['descripcion']) {
                 $sql_error = "UPDATE lafrips_redactor_descripcion
                 SET
@@ -210,14 +215,41 @@ class ColaDescripciones
                 return 'error';
             }
 
-            //preparamos info para la función que llamará a la API 
-            // $this->api_seleccionada = $info_producto['api_seleccionada'];
+            //preparamos info para la función que llamará a la API dependiendo del contenido de $info_producto['api']
+            if ($info_producto['api_seleccionada'] == 'redactame') {
+                $this->api_seleccionada = $info_producto['api_seleccionada'];
+                
+                $this->info_api = array(
+                    "id_product" => $id_product,
+                    "title" => $info_producto['nombre'],
+                    "description" => $info_producto['descripcion'],
+                    "keywords" => "",
+                    "tone" => "Professional"
+                );
+            } elseif ($info_producto['api_seleccionada'] == 'openai') {
+                $this->api_seleccionada = $info_producto['api_seleccionada'];
 
-            $this->info_api = array(
-                "id_product" => $id_product,
-                "title" => $info_producto['nombre'],
-                "description" => $info_producto['descripcion']
-            );                              
+                $this->info_api = array(
+                    "id_product" => $id_product,
+                    "title" => $info_producto['nombre'],
+                    "description" => $info_producto['descripcion']
+                );
+            } else {
+                //si no hay api seleccionada o no coincide el texto, es un error
+                $sql_error = "UPDATE lafrips_redactor_descripcion
+                SET
+                error = 1, 
+                date_upd = NOW()
+                WHERE id_product = $id_product";
+
+                Db::getInstance()->executeS($sql_error);  
+
+                file_put_contents($this->log_file, date('Y-m-d H:i:s').' - Error obteniendo Api seleccionada ('.$info_producto['api_seleccionada'].') para redacción para id_product '.$id_product.PHP_EOL, FILE_APPEND);
+
+                //devolvemos 'error', simplemente porque no es ni true ni false, de modo que continuará con el do - while
+                return 'error';
+
+            }                        
 
             return true;
 
@@ -227,7 +259,6 @@ class ColaDescripciones
     }    
 
     //función que devuelve la descripción almacenada en api_json, si la hay, buscando en el json para los casos de que sea de api redactame o api openai. Recibe el json sin decodificar
-    //28/05/2025 YA NO SE USA   
     public function getApiDescription($json) {
         //primero probamos a sacar si fuera de Openai, si no contiene nada probamos con redactame, si no devolvemos null
         $info_api = json_decode($json, true);

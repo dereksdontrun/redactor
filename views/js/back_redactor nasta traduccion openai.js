@@ -247,7 +247,35 @@ function start() {
         </div>        
     `;     
     
-    document.querySelector('.panel-heading').innerHTML = boton_cola;    
+    document.querySelector('.panel-heading').innerHTML = boton_cola;   
+
+    //26/12/2024 Vamos a modificar todo para que se pueda seleccionar la API con la que solictar la descripción, hasta ahora era redacta.me y vamos a añadir un GPT de Openai. Pondremos dos botones al cargar la pantalla, por defecto pulsado el de Openai, y si se pulsa el de Redactame se deshabilita el otro y viceversa.
+    var radiobutton_apis = `
+    <div class="col-lg-2 pull-right">
+        <div class="switch-container">
+            <input type="radio" id="radio_openai" name="switch_apis" value="openai" checked>
+            <label for="radio_openai" class="switch-label">OpenAI</label>
+
+            <input type="radio" id="radio_redactame" name="switch_apis" value="redactame">
+            <label for="radio_redactame" class="switch-label">Redacta.me</label>
+
+            <div class="slider"></div>
+        </div>
+    </div> 
+    `;    
+    
+    document.querySelector('.panel-heading').innerHTML += radiobutton_apis;      
+
+    //parece que al añadir de esta forma el checkbox no es detectado correctamente para el eventListener con change, lo que hacemos es poner el eventListener al panel-heading que ya existía, y preguntar sobre qué elemento es el evento    
+    document.querySelector('.panel-heading').addEventListener('change', function(e) {
+        if (e.target.matches('input[name="switch_apis"]')) {
+            console.log(`Seleccionada API: ${e.target.value}`);  
+            //si se cambia de api para los textos quiero "reiniciar" el panel lateral quitÃ¡ndolo
+            if (document.contains(document.querySelector('#div_producto'))) {
+                document.querySelector('#div_producto').remove();
+            }          
+        }
+    });
        
 
     //Cargamos los SELECTs de Proveedores y fabricantes. Enviamos el id del select de modo que formamos #"id" concatenando en la respuesta ajax.
@@ -942,7 +970,7 @@ function masColaProducto(array_ids) {
     // console.log('cola producto '+e.currentTarget.id);
     console.log(array_ids);
 
-    let api_seleccionada = 'openai';
+    let api_seleccionada = document.querySelector('input[name="switch_apis"]:checked').value;
 
     //mostramos spinner
     spinnerOn();
@@ -998,10 +1026,6 @@ function masColaProducto(array_ids) {
 
                     document.querySelector("#product_checkbox_"+id_product).checked = false;
                     document.querySelector("#product_checkbox_"+id_product).disabled = true;
-                    //el botón de añadir a cola dentro de producto lo deshabilitamos también
-                    if (document.querySelector("#boton_cola_traduccion_"+data.id_product)) {
-                        document.querySelector("#boton_cola_traduccion_"+data.id_product).disabled = true;  
-                    }   
 
                 });
 
@@ -1085,12 +1109,7 @@ function menosColaProducto(id_product) {
                 `<span class="badge badge-success">Si</span>` : `<span class="badge badge-info">No</span>`;
 
                 document.querySelector("#product_checkbox_"+data.id_producto_cola).checked = false;
-                document.querySelector("#product_checkbox_"+data.id_producto_cola).disabled = false;   
-                //el botón de añadir a cola dentro de producto lo habilitamos también si no lo está
-                //si se metió correctamente en cola, hay que deshabilitar el botón Cola traducción
-                if (document.querySelector("#boton_cola_traduccion_"+data.id_producto_cola)) {
-                    document.querySelector("#boton_cola_traduccion_"+data.id_producto_cola).disabled = false;  
-                }               
+                document.querySelector("#product_checkbox_"+data.id_producto_cola).disabled = false;                
 
                 //eliminamos spinner
                 spinnerOff();
@@ -1150,9 +1169,7 @@ function masColaTraduccion(id_product) {
                 console.dir(data);  
                 
                 //si se metió correctamente en cola, hay que deshabilitar el botón Cola traducción
-                if (document.querySelector("#boton_cola_traduccion_"+id_product)) {
-                    document.querySelector("#boton_cola_traduccion_"+id_product).disabled = true;  
-                }                                
+                document.querySelector("#boton_cola_traduccion_"+id_product).disabled = true;                 
 
                 showSuccessMessage(data.message);
 
@@ -1267,11 +1284,15 @@ function muestraProducto(producto) {
     } 
 
     //27/12/2024 Al añadir la posibilidad de utilizar Openai para las descripciones, vamos a mostrar el producto un poco diferente si es para una u otra api, comprobamos cual es la api seleccionada en el radiobutton de apis
-    //28/05/2025 ya solo usamos openai
-    let api_seleccionada_controlador = 'openai';
+    let api_seleccionada_controlador = document.querySelector('input[name="switch_apis"]:checked').value;
 
-    // console.log(`API seleccionada: ${api_seleccionada_controlador}`);  
-       
+    console.log(`API seleccionada: ${api_seleccionada_controlador}`);  
+    
+    //si tenemos seleccionada redactame ocultaremos la línea de keywords y tono
+    let row_redactame = ' style = "display: none"';
+    if (api_seleccionada_controlador == 'redactame') {
+        row_redactame = "";
+    }
 
     const div_producto = document.createElement('div');
     div_producto.classList.add('clearfix','panel_sticky');
@@ -1316,14 +1337,11 @@ function muestraProducto(producto) {
     }
 
     var esta_encola = "";
-    var disable_anadir_cola_redaccion = "";
     if (producto.en_cola == 1) {
         esta_encola = `
         <span id="en_cola_badge" class="badge badge-warning" title="Este producto está en la cola en espera de ser procesado">En Cola - Api: <strong>${api_seleccionada_producto}</strong></span> 
         ${producto.employee_metido_cola} - ${producto.date_metido_cola}<br>
         `;
-
-        disable_anadir_cola_redaccion = " disabled"; 
     }
 
     var esta_redactado = "";
@@ -1404,81 +1422,107 @@ function muestraProducto(producto) {
     `;
 
     //si se hizo petición anterior, tenemos en producto.info_api lo que se envió en descripción en forma de objeto. Si hay contenido probamos a sacarlo primero para formato json  openai y sino para redactame, si aún así no sale nada pondremos la descripción de producto
-    //28/05/2025 comenzamos a guardar la info para que la api haga la descripción (el texto) en la tabla como info_para_api, pero como hasta ahora lo hemos guardado en api_json codificado en json con el resto de la llamada, a esta fecha todos los productos tienen vacío info_para_api, de modo que ponemos que si está vacío info_para_api, lo saque de api_json, y si está vacío lo saque de description_short. Asi, los productos redactados hasta ahora se podrá ver la info
-    if (!producto.info_para_api) {
-        //si no había nada en campo info_para_api comprobamos si había json de anterior llamada para sacar la info, y si no hubiera, pondremos el contenido de description_short
-        if (producto.info_api) {
-            var descripcion_api = getApiDescription(producto.info_api);
+    if (producto.info_api) {
+        var descripcion_api = getApiDescription(producto.info_api);
 
-            if (!descripcion_api) {
-                descripcion_api = producto.descripcion;
-            }       
-            
-        } else {
-            //si no tenemos nada ponemos la description_short
-            var descripcion_api = producto.descripcion;
-        }
+        if (!descripcion_api) {
+            descripcion_api = producto.descripcion;
+        }       
+        
     } else {
-        var descripcion_api = producto.info_para_api;
+        //si no tenemos nada ponemos la description_short
+        var descripcion_api = producto.descripcion;
     }
-    
 
     //la API de redacta.me necesita un nombre, hasta 50 char, una descripción, hasta 500char, palabras clave, que no usamos pero pongo input y el tono, opcional también, que usamos por defecto Profesional ponemos select, aunque cuando se haga mediante lista se usará el por defecto.
     //18/09/2024 redacta.me ha ampliado el límite de caracteres de la descripción de 500 a 5000
-    //08/03/2024 Añadimos un input hidden donde guardar si se genera descripción desde aquí con el botón procesar, de modo que al marcar revisar sepamos desde el controlador que estamos revisando una descripción generada en el momento y no una de la cola de redacción o simplemnte la descripción no generada por aPI. 28/05/2025 LO QUITO
+    //08/03/2024 Añadimos un input hidden donde guardar si se genera descripción desde aquí con el botón procesar, de modo que al marcar revisar sepamos desde el controlador que estamos revisando una descripción generada en el momento y no una de la cola de redacción o simplemnte la descripción no generada por aPI
     //13/03/2024 Añadimos el id_product a todos los inputs y textareas para evitar un posible error en ocasiones, que aparentemente no se elimina el panel de un producto al mostrar otro y al pulsar revisar por ejemplo no recoje el textarea del producto del botón.
     //17/04/2024 Ponemos un botón de Cola Traducción junto al de activar el producto, que llamará vía Ajax a masColaTraducciones() para añadir producto a cola de traducciones.
     //27/12/2024 Dependiendo de la api elegida para generar la descripción mostraremos keywords y tono (redactame) o no (openai)
-    //27/05/2025 Ya no vamos a editar ni nombre ni descripción, solo las instrucciones o datos para la api, lo otro mostraremos solo. Cambiamos botón de cola de traducción por uno para añadir a cola, y ponemos un botón para guardar la nueva info paa redactar si decidimos modificarla. El botón revisar solo hará eso, marcar revisado, no guardará nada porque ya estará guardado. Y QUIZÁS, el botón Generar lo dejo pero se guardará lo que genere, es decir, al no poder editar lo que se muestre se quedará y si no gusta hay que encolar de nuevo. Esto es porque al ser 4 idiomas no podemos andar editando cada uno.
     var api_descripcion = `
     <div class="panel clearfix panel_producto">
         <h3>INFO API y descripción${mensaje_procesando}</h3>
-        <div class="row info_api"> 
-            <div class="panel clearfix"> 
-                <h3>Instrucciones o datos del producto para enviar a la API</h3>
-                <textarea class="form-control" class="textarea_descripcion_api" id="textarea_descripcion_api_${producto.id_product}"   oninput="ajustarAltura(this)" rows="1" >${descripcion_api}</textarea>  
+        <div class="row info_api">
+            <div class="row row_api">
+                <label for="input_nombre_api_${producto.id_product}" class="control-label col-sm-2 col-form-label col-form-label-sm">
+                    <span title="Max. 50 caracteres" data-toggle="tooltip" class="label-tooltip" data-html="true">
+                        Nombre
+                    </span>
+                </label>
+                <div class="col-sm-9">
+                    <input type="text" id="input_nombre_api_${producto.id_product}" value="${producto.name}" onkeyup="cuentaCaracteres(this);">
+                </div>
+                <div class="col-sm-1">
+                    <span id="caracteres_nombre_api_${producto.id_product}"></span>
+                </div>
+            </div>
+            <div class="row row_api" ${row_redactame}>
+                <label for="input_keywords_api_${producto.id_product}" class="control-label col-sm-2 col-form-label col-form-label-sm">
+                    <span title="Introduce palabras clave separadas por coma (opcional)" data-toggle="tooltip" class="label-tooltip" data-html="true">
+                        Keywords
+                    </span>
+                </label>
+                <div class="col-sm-7">
+                    <input type="text" id="input_keywords_api_${producto.id_product}" placeholder="Opcional">
+                </div>
+                <label for="select_tono_api_${producto.id_product}" class="control-label col-sm-1 col-form-label col-form-label-sm">Tono</label>
+                <div class="col-sm-2">
+                    <select id="select_tono_api_${producto.id_product}">                        
+                        <option value="Aggressive">Agresivo</option>
+                        <option value="Creative">Creativo</option>
+                        <option value="Formal">Formal</option>
+                        <option value="Informal">Informal</option>
+                        <option value="Witty">Ingenioso</option>
+                        <option value="Ironic">Irónico</option>
+                        <option value="Persuasive">Persuasivo</option>
+                        <option value="Professional" selected>Profesional</option>
+                    </select>
+                </div>   
+            </div>
+            <div class="row">
+                <label for="textarea_descripcion_api_${producto.id_product}" class="control-label col-form-label col-form-label-sm">
+                    <span title="Última petición a API o descripción actual. Max. 5000 caracteres" data-toggle="tooltip" class="label-tooltip" data-html="true">
+                        Instrucciones o datos del producto para enviar a la API
+                    </span>
+                    <span class="caracteres_descripcion_api" id="caracteres_descripcion_api_${producto.id_product}"></span>
+                </label>
+                <textarea class="form-control" id="textarea_descripcion_api_${producto.id_product}" onkeyup="cuentaCaracteres(this);">${descripcion_api}</textarea>
                 <br>
-                <div class="btn-group pull-right">
-                    <button class="btn btn-default" type="button" title="Guardar la info para la API." id="boton_guardar_info_api_${producto.id_product}" name="boton_guardar_info_api_${producto.id_product}">
-                        <i class="icon-save"></i> Guardar
-                    </button>                     
-                </div>               
             </div>
         </div>        
         <div class="row descripcion">
             <div class="panel clearfix panel_producto">
                 <h3>
                     <span id="contenido_textarea_${producto.id_product}">
-                        <span title="Contenido de nombre y descripción corta del producto en Prestashop" data-toggle="tooltip" class="label-tooltip" data-html="true">
-                            Nombre y Descripción actual del producto
+                        <span title="Contenido de la descripción corta del producto en Prestashop" data-toggle="tooltip" class="label-tooltip" data-html="true">
+                            Descripción actual del producto
                         </span>
-                    </span>                    
-                </h3>  
-                <div class="well">
-                    <strong>${producto.name}</strong>
-                    <hr>
-                    <div>
-                        ${producto.descripcion} 
-                    </div>                     
-                </div>     
-                <div class="well">                    
-                    <div>
-                        ${producto.descripcion_larga} 
-                    </div> 
-                </div>     
-                
+                    </span>
+                    <div class="btn-group pull-right">                         
+                        <button class="btn btn-small" type="button" title="Marcar en negrita" id="boton_negrita" name="boton_negrita">
+                            <i class="icon-bold"></i>
+                        </button> 
+                        Shift+B
+                    </div>
+                </h3>                
+                <textarea class="form-control area_descripcion" id="textarea_descripcion_actual_producto_${producto.id_product}" rows="9">${producto.descripcion}</textarea>
                 <div class="btn-group pull-left">
                     <button class="btn btn-default activa_producto" type="button" title="Activar el producto en Prestashop" id="boton_activar_${producto.id_product}" name="boton_activar_${producto.id_product}"  ${disable_activo}>
                         <i class="icon-money"></i> Activar
                     </button> 
-                    <button class="btn btn-default" type="button" title="Añadir producto a cola de redacción" id="boton_cola_redaccion_${producto.id_product}" name="boton_cola_redaccion_${producto.id_product}" ${disable_anadir_cola_redaccion}>
-                        <i class="icon-globe"></i> Cola Redacción
+                    <button class="btn btn-default" type="button" title="Añadir producto a cola de traducciones" id="boton_cola_traduccion_${producto.id_product}" name="boton_cola_traduccion_${producto.id_product}">
+                        <i class="icon-globe"></i> Cola Traducción
                     </button> 
                 </div>
                 <div class="btn-group pull-right">
-                    <button class="btn btn-default revisa_descripcion_producto" type="button" title="Marcar descripción de producto como revisada." id="boton_revisar_${producto.id_product}" name="boton_revisar_${producto.id_product}" ${disable_procesando}>
+                    <button class="btn btn-default revisa_descripcion_producto" type="button" title="Marcar descripción de producto como revisada. Guardará el contenido en la ficha de producto" id="boton_revisar_${producto.id_product}" name="boton_revisar_${producto.id_product}" ${disable_procesando}>
                         <i class="icon-thumbs-up"></i> Revisar
-                    </button>                     
+                    </button> 
+                    <button class="btn btn-default genera_descripcion_producto" type="button" title="Generar descripción de producto con API" id="boton_generar_${producto.id_product}" name="boton_generar_${producto.id_product}" ${disable_procesando}>
+                        <i class="icon-pencil"></i> Generar
+                    </button>   
+                    <input type="hidden" id="redactado_hidden_${producto.id_product}" name="redactado_hidden_${producto.id_product}" value="0">
                 </div> 
             </panel>
         </div>                
@@ -1497,14 +1541,18 @@ function muestraProducto(producto) {
         </div>
     `;
 
-    //queremos que el textarea de la info para enviar a la api se adapte al contenido, de modo que si excede las rows de textarea aumente su altura. Para ello lo cogemos y reseteamos su altura con "auto" y después le asignamos scrollHeight que es la altura de scroll, su altura total. Esto unido a que el panel sticky lateral es de top:109px a bottom:0px con overflow auto, hará que si se supera la medida de la pantalla aparezca un nuevo scroll vertical para el panel
-    const textarea = document.querySelector('#textarea_descripcion_api_'+producto.id_product);
+    //llamamos por primera vez a la función que nos cuenta y muestra el número de caracteres de la descripción a enviar a la API
+    cuentaCaracteres(document.querySelector('#textarea_descripcion_api_'+producto.id_product));
+    cuentaCaracteres(document.querySelector('#input_nombre_api_'+producto.id_product));
+
+    //queremos que el textarea de la descripción generada se adapte al contenido, de modo que si excede las rows de textarea aumente su altura. Para ello lo cogemos y reseteamos su altura con "auto" y después le asignamos scrollHeight que es la altura de scroll, su altura total. Esto unido a que el panel sticky lateral es de top:109px a bottom:0px con overflow auto, hará que si se supera la medida de la pantalla aparezca un nuevo scroll vertical para el panel
+    const textarea = document.querySelector('#textarea_descripcion_actual_producto_'+producto.id_product);
     // console.log('height1'+textarea.style.height);
     textarea.style.height = "auto"; // Reset the height to allow content to fit
     // console.log('height2'+textarea.style.height);
     textarea.style.height = textarea.scrollHeight + "px"; 
     // console.log('height3'+textarea.style.height);
-   
+
     //añadimos eventlisteners a los botones. El botón activar, si está activo llama a la función para activar el producto desde el módulo. El botón Revisar indica que el texto ha sido revisado y por tanto lo guardamos como quede en product_lang y el botón Generar recoge los datos en los inputs para la API y llama a la clase de Redactame para hacer la petición.
     const boton_activar = document.querySelector("#boton_activar_"+producto.id_product);
 
@@ -1512,27 +1560,43 @@ function muestraProducto(producto) {
         activarProducto(producto.id_product)
     }); 
 
-    //28/05/2025 Ponemos un botón de Cola Redacción junto al de activar el producto, que llamará vía Ajax a masColaProducto() para añadir producto a cola de redacción.
-    const boton_cola_redaccion = document.querySelector("#boton_cola_redaccion_"+producto.id_product);
+    //17/04/2024 Ponemos un botón de Cola Traducción junto al de activar el producto, que llamará vía Ajax a masColaTraducciones() para añadir producto a cola de traducciones.
+    const boton_cola_traduccion = document.querySelector("#boton_cola_traduccion_"+producto.id_product);
 
-    boton_cola_redaccion.addEventListener('click', function(){  
-        masColaProducto(new Array(producto.id_product));          
-    });     
-
-    //28/05/2025 Ponemos un botón para guardar la info para la api
-    const boton_guardar_info_para_api = document.querySelector("#boton_guardar_info_api_"+producto.id_product);
-
-    boton_guardar_info_para_api.addEventListener('click', function(){  
-        guardaInfoParaApi(producto.id_product);          
-    });   
+    boton_cola_traduccion.addEventListener('click', function(){     
+        masColaTraduccion(producto.id_product)
+    }); 
 
     const boton_revisar = document.querySelector("#boton_revisar_"+producto.id_product);
 
     boton_revisar.addEventListener('click', function(){     
         revisaDescripcion(producto.id_product)
     }); 
-     
+
+    const boton_generar = document.querySelector("#boton_generar_"+producto.id_product);
+
+    boton_generar.addEventListener('click', function(){  
+         generaDescripcion(producto.id_product)
+    }); 
+
+    //para el botón de poner negrita. Si se pulsa se comprueba que haya algo seleccionado dentro del textarea llamando a getTextoNegrita()
+    const boton_negrita = document.querySelector("#boton_negrita");
+
+    boton_negrita.addEventListener('click', function(){  
+        getTextoNegrita(producto.id_product)
+    }); 
     
+    //queremos que si se pulsa la combinación de teclas Shift+B se compruebe si hay algo seleccionado dentro del text area y también se ponga en negrita como al pulsar el botón. El código de evento de la letra B es 66 o keyB. El de Shift es 16, pero está asociado a shiftKey
+    document.addEventListener('keydown', function (event) {        
+        // console.log(event);
+        if (event.shiftKey && event.code === 'KeyB') {
+            console.log('pulsado shift+B');            
+            getTextoNegrita(producto.id_product);
+
+            //para evitar que se escriba la B de Shift+B hacemos event.preventDefault, de modo que el comportamiento por defecto de escribir la letra pulsada se evita, siempre que entremos en la combinación shift+b
+            event.preventDefault();
+        }        
+    });
 
 }
 
@@ -1581,10 +1645,34 @@ function getApiDescription(info_api) {
     // }     
 }
 
-//función que cambia el tamaño del textarea a medida que crece o disminuye
-function ajustarAltura(elemento) {
-    elemento.style.height = 'auto'; // Resetea la altura para recalcular
-    elemento.style.height = (elemento.scrollHeight) + 'px'; // Ajusta al contenido
+//función que es llamada al pulsar el boton_negrita y revisa si dentrodel textarea hay alguna selección de texto. Para ello busca selectionStart y selectionEnd dentro del textarea, si estos son diferentes es que hay algo seleccionado.
+//después ponemos el rango seleccionado a 0 de nuevo (es como resetear) para que si pulsamos de nuevo el botón ya no tenga nada seleccionado con setSelectionRange(0, 0) ya que si no si pulsas con algo seleccionado fuera del textarea sigue teniendo "en memoria" la anterior selección
+function getTextoNegrita(id_product) {
+    // console.log('dentro negrita');
+
+    const textarea = document.querySelector('#textarea_descripcion_actual_producto_'+id_product);
+
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    
+    if (start !== end) {
+        //hay un rango seleccionado, sacamos el texto con substring
+        const texto_seleccionado = textarea.value.substring(start, end);
+        
+        //añadimos las etiquetas de negritas al texto seleccionado
+        const texto_negritas = "<strong>"+texto_seleccionado+"</strong>"; 
+    
+        //el nuevo texto dentro de textarea es elslice inicial hasta selectionStart con el slice final desde selectionEnd y en medio el texto con etiquetas de negrita
+        const nuevo_texto_textarea = textarea.value.slice(0, start) + texto_negritas + textarea.value.slice(end);
+
+        //añadimos el texto de nuevo al value del textarea
+        textarea.value = nuevo_texto_textarea;       
+
+        //reseteamos la selección para evitar que siga ahí si pulsamos de nuevo el botón
+        textarea.setSelectionRange(0, 0);
+    }
+
+    return;
 }
 
 //función que pide la activación de un producto via Ajax
@@ -1653,74 +1741,15 @@ function activarProducto(id_product) {
     });  //fin ajax
 }
 
-//28/05/2025 función para guardar el contenido del textarea de info para api en el campo de la tabla, para que sea usado en la próxima petición de redacción
-function guardaInfoParaApi(id_product) {
-    const info_para_api = document.querySelector("#textarea_descripcion_api_"+id_product).value;
-
-    //mostramos spinner
-    spinnerOn();
-
-    //sacamos panel procesando
-    showPanelProcesando();
-
-    var dataObj = {};
-    dataObj['id_product'] = id_product;
-    dataObj['info_para_api'] = info_para_api;
-    
-    //el token lo hemos sacado arriba del input hidden
-    $.ajax({
-        url: 'index.php?controller=AdminRedactorDescripciones' + '&token=' + token + "&action=guardar_info_para_api" + '&ajax=1' + '&rand=' + new Date().getTime(),
-        type: 'POST',
-        data: dataObj,
-        cache: false,
-        dataType: 'json',
-        success: function (data, textStatus, jqXHR)
-        
-        {
-            if (typeof data.error === 'undefined')
-            {                                 
-                console.dir(data);     
-                
-                //si se guardó correctamente solo mostramos mensaje de success   
-                showSuccessMessage(data.message);
-        
-                //eliminamos spinner
-                spinnerOff();
-
-                //escondemos panel procesando
-                hidePanelProcesando()
-
-            }
-            else 
-            {             
-
-                //eliminamos spinner
-                spinnerOff();
-
-                //escondemos panel procesando
-                hidePanelProcesando()
-
-                showErrorMessage(data.message);
-            }
-
-        },
-        error: function (jqXHR, textStatus, errorThrown)
-        {
-            showErrorMessage('ERRORS: ' + textStatus);
-        }
-    });  //fin ajax
-}
-
 //función que marca un producto como revisado y al dar por buena la descripción de producto la actualiza en lafrips_product_lang, junto con el nombre
 //no indicamos nada de las apis de redacción dado que se puede revisar un producto que acaba de ser redactado con una api y cambiar la api en el selector, o se puede revisar un producto que ha sido redactado con la cola y tampoco tiene que coincidir, de modo que al enviar el producto a redactar se guarda en api la api seleccionada y esa será la que cuente
-//28/05/2025 Ahora revisar solo es marcar revisado en tabla, y redactado ¿? de modoq ue no guardamos datos
 function revisaDescripcion(id_product) {
-    // console.log(document.querySelector("#textarea_descripcion_actual_producto_"+id_product).value);
+    console.log(document.querySelector("#textarea_descripcion_actual_producto_"+id_product).value);
 
-    // const descripcion = document.querySelector("#textarea_descripcion_actual_producto_"+id_product).value;
-    // const nombre = document.querySelector("#input_nombre_api_"+id_product).value;
-    // //sacamos value del input hidden que se pone a 1 si hacemos la petición de descripción a la API
-    // const redactado_ahora = document.querySelector("#redactado_hidden_"+id_product).value;
+    const descripcion = document.querySelector("#textarea_descripcion_actual_producto_"+id_product).value;
+    const nombre = document.querySelector("#input_nombre_api_"+id_product).value;
+    //sacamos value del input hidden que se pone a 1 si hacemos la petición de descripción a la API
+    const redactado_ahora = document.querySelector("#redactado_hidden_"+id_product).value;
 
     //mostramos spinner
     spinnerOn();
@@ -1746,12 +1775,13 @@ function revisaDescripcion(id_product) {
     }
     //deshabilitamos botones mientras tanto
     document.querySelector('#boton_revisar_'+id_product).disabled = true;
-    
+    document.querySelector('#boton_generar_'+id_product).disabled = true;
+
     var dataObj = {};
     dataObj['id_product'] = id_product;
-    // dataObj['descripcion'] = descripcion;
-    // dataObj['nombre'] = nombre;
-    // dataObj['redactado_ahora'] = redactado_ahora;
+    dataObj['descripcion'] = descripcion;
+    dataObj['nombre'] = nombre;
+    dataObj['redactado_ahora'] = redactado_ahora;
     //el token lo hemos sacado arriba del input hidden
     $.ajax({
         url: 'index.php?controller=AdminRedactorDescripciones' + '&token=' + token + "&action=revisar_descripcion" + '&ajax=1' + '&rand=' + new Date().getTime(),
@@ -1768,7 +1798,6 @@ function revisaDescripcion(id_product) {
                 
                 //si se guardó correctamente la descripción, hay que actualizar los productos, marcando como Redactado, Revisado, quitar Procesando, y permitiendo que se puedan enviar de nuevo, tanto activando el checkbox como cambiando el botón Cola a Mas cola
                 // console.log(data.id_producto_cola);
-                //ahora solo se revisa, pero hacemos lo mismo con los botones
                 document.querySelector("#boton_cola_"+id_product).innerHTML = `
                     <button class="btn btn-default mas_cola_producto" type="button" title="Añadir producto a cola" id="mas_cola_${id_product}" name="${id_product}">
                         <i class="icon-plus"></i> Cola
@@ -1782,8 +1811,14 @@ function revisaDescripcion(id_product) {
                 }); 
 
                 //08/03/2024 Para indicar Redactado obtenemos el value del input hidden redactado_hidden_idproduct, cuyo valor 1 indica que esta descripción se ha generado ahora y no que estemos revisando una que ya estaba en el producto, sea o no de API
-                //28/05/2025 lo hemos quitado al no permitir redactar desde el controlador
-                var mostrar_redactado = "";                
+                var mostrar_redactado = "";
+                if (document.querySelector("#redactado_hidden_"+id_product).value == 1) {
+                    //el producto acaba de ser marcado como redactado. mostramos success
+                    document.querySelector("#redactado_"+id_product).innerHTML = `<span class="badge badge-success">Si</span>`;
+
+                    mostrar_redactado = `<span id="redactado_badge" class="badge badge-success" title="Este producto ya ha sido redactado">Redactado</span> 
+                    <br>`;
+                }
                 
                 //el producto ya está revisado (incluso si no se llamó a la API, revisado cuenta como Redactado) mostramos success
                 document.querySelector("#revisado_"+id_product).innerHTML = `<span class="badge badge-success">Si</span>`;
@@ -1802,7 +1837,8 @@ function revisaDescripcion(id_product) {
                 
                 //habilitamos botones 
                 document.querySelector('#boton_revisar_'+id_product).disabled = false;
-                                        
+                document.querySelector('#boton_generar_'+id_product).disabled = false;
+                        
                 showSuccessMessage(data.message);
         
                 //eliminamos spinner
@@ -1825,7 +1861,8 @@ function revisaDescripcion(id_product) {
 
                 //habilitamos botones 
                 document.querySelector('#boton_revisar_'+id_product).disabled = false;
-               
+                document.querySelector('#boton_generar_'+id_product).disabled = false;
+
                 //eliminamos spinner
                 spinnerOff();
 
@@ -1845,15 +1882,29 @@ function revisaDescripcion(id_product) {
 
 //función que recoge los datos para enviar a la API, llama a esta y muestra el resultado
 //30/12/2024 deber recoger la api seleccionada para enviarla también al controlador
-//28/05/2025 Ya no  se generan descripciones desde el controlador, esta función ya no se utiliza
 function generaDescripcion(id_product) {
     console.log(id_product);
 
-    let api_seleccionada_controlador = 'openai';
+    let api_seleccionada_controlador = document.querySelector('input[name="switch_apis"]:checked').value;
 
     //recogemos valores del formulario destinado a la API, dependiendo de la api seleccionada, ya que openai no usa keywords ni tono. Tono recoge el value del select, que es la palabra en inglés como requiere la API. Keywords, si lleva algo, lo guardaremos como venga
     let nombre = document.querySelector("#input_nombre_api_"+id_product).value;    
-    let descripcion = document.querySelector("#textarea_descripcion_api_"+id_product).value;       
+    let descripcion = document.querySelector("#textarea_descripcion_api_"+id_product).value;
+    let keywords = '';
+    let tono = '';
+    if (api_seleccionada_controlador == 'redactame') {
+        keywords = document.querySelector("#input_keywords_api_"+id_product).value;
+        tono = document.querySelector("#select_tono_api_"+id_product).value;
+
+        //18/09/2024 redacta.me ha ampliado el límite de caracteres de la descripción de 500 a 5000
+        if (descripcion.length > 5000) {
+            showErrorMessage('La descripción a enviar a la API no puede tener más de 5000 caracteres');
+            return;
+        } else if (nombre.length > 50) {
+            showErrorMessage('El nombre a enviar a la API no puede tener más de 50 caracteres');
+            return;
+        }
+    }      
 
     //mostramos spinner
     spinnerOn();
@@ -1879,12 +1930,17 @@ function generaDescripcion(id_product) {
     }
     //deshabilitamos botones mientras tanto
     document.querySelector('#boton_revisar_'+id_product).disabled = true;
-    
+    document.querySelector('#boton_generar_'+id_product).disabled = true;
+
     var dataObj = {};
     dataObj['id_product'] = id_product;
     dataObj['nombre'] = nombre;    
     dataObj['descripcion'] = descripcion;
-    dataObj['api_seleccionada'] = api_seleccionada_controlador;    
+    dataObj['api_seleccionada'] = api_seleccionada_controlador;
+    if (api_seleccionada_controlador == 'redactame') {
+        dataObj['keywords'] = keywords;
+        dataObj['tono'] = tono;
+    }
 
     console.log(dataObj);
     //el token lo hemos sacado arriba del input hidden
@@ -1936,7 +1992,8 @@ function generaDescripcion(id_product) {
                 
                 //habilitamos botones 
                 document.querySelector('#boton_revisar_'+id_product).disabled = false;
-                
+                document.querySelector('#boton_generar_'+id_product).disabled = false;
+
                 //el contenido de la descripción generada lo ponemos en el textarea_descripcion_actual_producto, pero de hecho no está guardado en Prestashop hasta que no se pulse revisado, de modo que si vovlemos cargar el panel del producto aparecerá lo que haya en Prestashop
                 document.querySelector("#textarea_descripcion_actual_producto_"+id_product).value = data.descripcion_api;
                 //02/01/2025 Si hemos utilizado la api OpenAI puede que recibamos también el nombre para el producto, en ese caso lo metermos en el input de title
@@ -1974,7 +2031,8 @@ function generaDescripcion(id_product) {
                 document.querySelector('#info_procesos').innerHTML = panel_info_procesos; 
 
                 //habilitamos botones 
-                document.querySelector('#boton_revisar_'+id_product).disabled = false;                      
+                document.querySelector('#boton_revisar_'+id_product).disabled = false;
+                document.querySelector('#boton_generar_'+id_product).disabled = false;                
 
                 showErrorMessage(data.message);
 
@@ -1995,6 +2053,55 @@ function generaDescripcion(id_product) {
         }
     });  //fin ajax
 }
+
+//cuenta en tiempo real el número de caracteres en Descripción y nombre para enviar a la api
+//es llamada con "this" como argumento, this es el elemento que ha recibido el keyup, de modo que podemos sacar su id como su atributo para saber a qué elemento nos referimos
+function cuentaCaracteres(arg) {
+    // var num_caracteres = document.querySelector('#textarea_descripcion_api').value.length;
+    var num_caracteres = arg.value.length;
+    // +console.log('num_caracteres '+num_caracteres);
+
+    var element_id = arg.getAttribute('id');
+    // console.log('element_id '+element_id);
+
+    //sacamos el id de producto de element_id buscando la última posición de _ y cortando desde ahí más 1
+    var id_product = element_id.substring(element_id.lastIndexOf("_") + 1);
+
+    var numero = "";
+
+    //13/03/2024 Al añadir el id_product a los ids de todos los inputs y textareas ya no se puede buscar como 
+    // if (element_id == 'textarea_descripcion_api') { o if (element_id == 'input_nombre_api') {
+    // usamos función de javascript str.startsWith() AL FINAL HE TENIDO QUE SACAR EL id_product de element_id
+    //if (element_id.startsWith('textarea_descripcion_api')) {
+    //if (element_id.startsWith('input_nombre_api')) {
+    //18/09/2024 redacta.me ha ampliado el límite de caracteres de la descripción de 500 a 5000
+
+    if (element_id == 'textarea_descripcion_api_'+id_product) {
+        if (num_caracteres < 4000) {
+            numero = `<span class="badge badge-success">${num_caracteres}</span>`;
+        } else if (num_caracteres > 5000) {
+            numero = `<span class="badge badge-danger">${num_caracteres}</span>`;
+        } else {
+            numero = `<span class="badge badge-warning">${num_caracteres}</span>`;
+        }
+    
+        document.querySelector('#caracteres_descripcion_api_'+id_product).innerHTML =  numero;
+    }
+
+    
+    if (element_id == 'input_nombre_api_'+id_product) {
+        if (num_caracteres < 42) {
+            numero = `<span class="badge badge-success">${num_caracteres}</span>`;
+        } else if (num_caracteres > 50) {
+            numero = `<span class="badge badge-danger">${num_caracteres}</span>`;
+        } else {
+            numero = `<span class="badge badge-warning">${num_caracteres}</span>`;
+        }
+    
+        document.querySelector('#caracteres_nombre_api_'+id_product).innerHTML = numero;
+    }    
+}
+
 
 //spinner de carga
 function spinnerOn() {

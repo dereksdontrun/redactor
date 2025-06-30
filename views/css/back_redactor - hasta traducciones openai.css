@@ -221,10 +221,7 @@ input[type="radio"]:checked + label {
   margin-bottom: 2px !important;
 }
 
-.textarea_descripcion_api {
-  overflow:hidden; 
-  resize:none;
-}
+
  
 
  /* Css para spinner de carga, sacado de https://tobiasahlin.com/spinkit/ */ 

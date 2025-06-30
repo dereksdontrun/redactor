@@ -545,7 +545,7 @@ class AdminRedactorDescripcionesController extends ModuleAdminController {
 
         $sql_producto = "SELECT pro.id_product AS id_product, pro.reference AS reference, pla.name AS name, pro.id_supplier AS id_supplier, sup.name AS supplier,
         pro.id_manufacturer AS id_manufacturer, man.name AS manufacturer, 
-        pla.description_short AS descripcion, CHAR_LENGTH(pla.description_short) AS longitud_descripcion,
+        pla.description_short AS descripcion, pla.description AS descripcion_larga, CHAR_LENGTH(pla.description_short) AS longitud_descripcion,
         CASE
         WHEN pla.link_rewrite LIKE '%_kidscrd' OR pla.link_rewrite LIKE '%-noindxr' THEN 0
         ELSE 1
@@ -565,7 +565,7 @@ class AdminRedactorDescripcionesController extends ModuleAdminController {
         IFNULL((SELECT CONCAT(firstname,' ',lastname) FROM lafrips_employee WHERE id_employee = red.id_employee_metido_cola), 'No disponible') AS employee_metido_cola, 
         IFNULL((SELECT CONCAT(firstname,' ',lastname) FROM lafrips_employee WHERE id_employee = red.id_employee_redactado), 'No disponible') AS employee_redactado, 
         IFNULL((SELECT CONCAT(firstname,' ',lastname) FROM lafrips_employee WHERE id_employee = red.id_employee_revisado), 'No disponible') AS employee_revisado,   
-        red.api_json AS api_json,        
+        red.api_json AS api_json, red.info_para_api AS info_para_api,         
         IFNULL(CONCAT( '$url_base', ima.id_image, '-home_default/', pla.link_rewrite, '.jpg'), CONCAT('$url_base', 'img/logo_producto_medium_default.jpg')) AS url_imagen,
         CONCAT( '$url_product_back', pro.id_product) AS url_producto,
         pro.active AS activo,
@@ -587,6 +587,11 @@ class AdminRedactorDescripcionesController extends ModuleAdminController {
             } else {
                 $producto['info_api'] = 0;
             }
+
+            //28/05/2025 comenzamos a guardar la info para que la api haga la descripción (el texto) en la tabla como info_para_api, pero como hasta ahora lo hemos guardado en api_json codificado en json con el resto de la llamada, a esta fecha todos los productos tienen vacío info_para_api, de modo que ponemos que si está vacío lo saque de api_json, y si está vacío lo saque de description_short. Asi, los productos redactados hasta ahora se podrá ver la info
+            if (!$producto['info_para_api'] || $producto['info_para_api'] == "") {
+                $producto['info_para_api'] = 0;
+            } 
 
             //pequeña ñapa rápida para que si el nombre del empleado es Automatizador Automatizador solo lo ponga una vez
             if ($producto['employee_redactado'] == "Automatizador Automatizador") {
@@ -627,38 +632,74 @@ class AdminRedactorDescripcionesController extends ModuleAdminController {
 
     //función que recibe un id_product y una descripción y nombre y llama a Redactame.php para actualizar product_name y description_short del producto para id_lang 1. También marcará Revisado a 1, En cola a 0, etc desde allí.
     //30/12/2024 Al añadir otra api, openai para generar descripciones, cuando revisamos un producto queremos poner con cual fue redactado. La api seleccionada para generar la descripción se guarda en 'api' cuando se mete en cola o se pulsa generar desde el controlador, de modo que al revisar copiaremos en redactado_api lo que haya en api. Si hubieramos revisado el producto desde el controlador sin antes generar la descripción, es decir, modificar lo que hubiera, en 'api' no habría nada y redactado_api quedaría vacío, lo que sería correcto. O podría ser un producto redactado en cola y revisado después desde el controlador, con lo que tenemos que recoger de api la api seleccionada.
+    //28/05/2025 Ahora revisar se limita a marcar el productocomo revisado, la descripción etc no se guardan ya que no se pueden editar en el front
     public function ajaxProcessRevisarDescripcion() {
         $id_product = Tools::getValue('id_product', false);  
-        $nombre = Tools::getValue('nombre', false);  
-        $descripcion = Tools::getValue('descripcion', false);   
-        //08/03/2024 Recogemos valor de input hidden id redactado_hidden_id_product que indica si la descripción que llega se acaba de generar en el front, o sino sería o bien generada en cola o lo que hubiera en el producto de prestashop
-        $redactado = (int) Tools::getValue('redactado_ahora', false);            
+        // $nombre = Tools::getValue('nombre', false);  
+        // $descripcion = Tools::getValue('descripcion', false);   
+        // //08/03/2024 Recogemos valor de input hidden id redactado_hidden_id_product que indica si la descripción que llega se acaba de generar en el front, o sino sería o bien generada en cola o lo que hubiera en el producto de prestashop
+        // $redactado = (int) Tools::getValue('redactado_ahora', false);            
 
-        if (empty($id_product) || empty($nombre) || empty($descripcion)) {
+        if (empty($id_product)) {
             die(Tools::jsonEncode(array('error'=> true, 'message'=>'Error con la información del producto a revisar')));
         }
 
-        if (!Validate::isCleanHtml($nombre) || !Validate::isCleanHtml($descripcion)) {
-            die(Tools::jsonEncode(array('error'=> true, 'message'=>'Error, los campos a guardar contienen elementos inválidos')));
+        // RedactorTools::updateTablaRedactorRedactado(1, $id_product);   
+
+        RedactorTools::updateTablaRedactorRevisado($id_product);            
+
+        die(Tools::jsonEncode(array(
+            'message'=>'Producto marcado como revisado',
+        )));
+
+        // if (!Validate::isCleanHtml($nombre) || !Validate::isCleanHtml($descripcion)) {
+        //     die(Tools::jsonEncode(array('error'=> true, 'message'=>'Error, los campos a guardar contienen elementos inválidos')));
+        // }
+
+        // if (($retorno_actualiza_producto = RedactorTools::actualizaProducto($id_product, $descripcion, $nombre)) === true) {
+
+        //     //marcar revisado. Para marcar redactado, la descripción debe haber sido solicitada a la API desde el front también
+        //     // if ($redactado) {
+        //     //     RedactorTools::updateTablaRedactorRedactado(1, $id_product);        
+        //     // }
+
+        //     RedactorTools::updateTablaRedactorRedactado(1, $id_product);   
+
+        //     RedactorTools::updateTablaRedactorRevisado($id_product);            
+
+        //     die(Tools::jsonEncode(array(
+        //         'message'=>'Producto marcado como revisado',
+        //     )));
+
+        // } else {
+
+        //     die(Tools::jsonEncode(array('error'=> true, 'message'=>'Error actualizando los campos a guardar - '.$retorno_actualiza_producto)));
+        // }        
+    }
+
+    //28/05/2025 guardar el contenido del textarea infor para api
+    public function ajaxProcessGuardarInfoParaApi() {
+        $id_product = Tools::getValue('id_product', false);  
+        $info_para_api = Tools::getValue('info_para_api', false); 
+
+        if (empty($id_product) || empty($info_para_api)) {
+            die(Tools::jsonEncode(array('error'=> true, 'message'=>'Error con la información a almacenar')));
         }
 
-        if (($retorno_actualiza_producto = RedactorTools::actualizaProducto($id_product, $descripcion, $nombre)) === true) {
+        if (!Validate::isCleanHtml($info_para_api)) {
+            die(Tools::jsonEncode(array('error'=> true, 'message'=>'Error, la información a guardar contiene elementos inválidos')));
+        }
 
-            //marcar revisado. Para marcar redactado, la descripción debe haber sido solicitada a la API desde el front también
-            if ($redactado) {
-                RedactorTools::updateTablaRedactorRedactado(1, $id_product);        
-            }
-
-            RedactorTools::updateTablaRedactorRevisado($id_product);            
+        if (($retorno_guarda_info_para_api = RedactorTools::actualizaInfoParaApi($id_product, $info_para_api)) === true) {                      
 
             die(Tools::jsonEncode(array(
-                'message'=>'Producto marcado como revisado, descripción y nombre actualizados',
+                'message'=>'Información del producto para la API actualizada',
             )));
 
         } else {
 
-            die(Tools::jsonEncode(array('error'=> true, 'message'=>'Error actualizando los campos a guardar - '.$retorno_actualiza_producto)));
-        }        
+            die(Tools::jsonEncode(array('error'=> true, 'message'=>'Error actualizando la información del producto para la API - '.$retorno_guarda_info_para_api)));
+        } 
     }
 
     //función que recibe los datos para enviar a la API y llama a la clase Redactame para hacer la petición. Actualizará Encola, procesando, etc si es necesario
