@@ -24,6 +24,8 @@
 *  International Registered Trademark & Property of PrestaShop SA
 */
 
+require_once(dirname(__FILE__).'/ClasificadorCategoriaManager.php');
+
 //02/01/2025 Metemos en esta calse las funciones comunes al uso de cualquier api de redacción, sea Redacta.me o OpenAI, como revisar el producto, actualizar o guardar la nueva descripción, etc
 
 class RedactorTools
@@ -31,7 +33,7 @@ class RedactorTools
 
     //28/02/2024 Función que guardará la descripción generada, ya sea si el producto se ha procesado en Cola de descipciones, o si se ha procesado visualmente desde el front del módulo (controlador), en cuyo caso también recibirá el nombre del producto por si el usuario lo ha modificado. No debe marcar Redactado, eso debe hacerse solo cuando se genera la descripción con API, ya sea en cola de redacción o manualmente desde el front.
     //damos la opción del parámtreo nombre vacío porque el nombre por cola de redacción no se modifica, pero manualmente si se puede cambiar.    
-    public static function actualizaProducto($id_product, $id_lang, $descripcion, $nombre = "", $descripcion_categoria = "", $metatitulo = "", $metadescripcion = "") {
+    public static function actualizaProducto($id_product, $id_lang, $descripcion, $nombre = "", $atributo_alt = "", $metatitulo = "", $metadescripcion = "") {
             // $parametros = ['id_product' => $id_product, 'id_lang' => $id_lang,'descripcion' => $descripcion,'nombre' => $nombre,'descripcion_categoria' => $descripcion_categoria,'metatitulo' => $metatitulo,'metadescripcion' => $metadescripcion];
         // file_put_contents(__DIR__ . "/actualizaProducto.txt", print_r($parametros, true), FILE_APPEND);
         //instanciamos el producto para actualizar descripción y/o nombre, solo para id_lang 1
@@ -41,10 +43,6 @@ class RedactorTools
 
         if ($nombre !== "") {
             $product->name[$id_lang] = $nombre;
-        }  
-        
-        if ($nombre !== "") {
-            $product->description[$id_lang] = $descripcion_categoria;
         }  
 
         if ($nombre !== "") {
@@ -56,7 +54,16 @@ class RedactorTools
         }  
 
         try {
-            $product->update();                      
+            if (!$product->update()) {
+                // Si devuelve false, lanza una excepción manual
+                throw new Exception("No se pudieron actualizar los textos para el producto con ID {$id_product}");
+            }    
+            
+            //15/07/2025 Ahora guardamos el texto para el atributo alt de las imágenes, para $id_lang, lo hacemos por separado ya que afecta a otras tablas
+            if (!self::actualizarAltImagenesProducto($id_product, $id_lang, $atributo_alt)) {
+                // Si devuelve false, lanza una excepción manual
+                throw new Exception("No se pudieron actualizar los atributos alt de imágenes para el producto con ID {$id_product}");
+            }
 
             //guardamos la descripción por ahora para analizar errores
             //07/01/2025, de moemnto dejamos de guardar si no hay error
@@ -70,7 +77,7 @@ class RedactorTools
             return true;
 
         } catch (Exception $e) {
-            $error_message = "Excepción: ".pSQL($e->getMessage());
+            $error_message = "Excepción guardando textos: ".pSQL($e->getMessage());
 
             //guardamos por ahora la descripción fallida para analizar errores
             $descripcion = 'Error exception. '.$descripcion;
@@ -87,9 +94,59 @@ class RedactorTools
 
     }
 
+    public static function actualizarAltImagenesProducto($id_product, $id_lang, $texto_alt)
+    {
+        try {
+            if (!(int)$id_product || !(int)$id_lang || empty($texto_alt)) {
+                throw new Exception("Faltan datos necesarios para actualizar el atributo alt.");
+            }
+
+            // Obtener todas las imágenes del producto
+            $imagenes = Db::getInstance()->executeS("
+                SELECT id_image FROM "._DB_PREFIX_."image
+                WHERE id_product = ".(int)$id_product
+            );
+
+            if (!$imagenes) {
+                throw new Exception("No se encontraron imágenes para el producto $id_product.");
+            }
+
+            foreach ($imagenes as $imagen) {
+                $id_image = (int)$imagen['id_image'];
+
+                // Comprobamos si ya existe esa fila en image_lang
+                $existe = Db::getInstance()->getValue("
+                    SELECT COUNT(*) FROM "._DB_PREFIX_."image_lang
+                    WHERE id_image = $id_image AND id_lang = $id_lang
+                ");
+
+                if ($existe) {
+                    // Actualizar
+                    Db::getInstance()->update('image_lang', [
+                        'legend' => pSQL($texto_alt)
+                    ], "id_image = $id_image AND id_lang = $id_lang");
+                } else {
+                    // Insertar
+                    Db::getInstance()->insert('image_lang', [
+                        'id_image' => $id_image,
+                        'id_lang' => $id_lang,
+                        'legend' => pSQL($texto_alt)
+                    ]);
+                }
+            }
+
+            return true;
+
+        } catch (Exception $e) {
+            return "Error actualizando atributo alt de imágenes de producto $id_product idioma $id_lang: ".$e->getMessage();
+        }
+    }
+
+
     //función para marcar como redactado un producto, se separa de la función de marcar como revisado porque un producto podemos redactarlo de forma automática desde la cola de redacción o manualmente desde el controlador. Pero revisarlo solo se hace desde el controlador y si el producto fue redactado con la cola, tenemos que poder marcar solo revisado, pero si fue redactado pidiéndolo manualmente desde el controlador, debemos poder marcar ambos, de modo que llamaremos a una sola función o ambas dependiendo.
     //si estamos marcando un producto como redactado = 1, significa que está recién redactado y por tanto no revisado, pondremos revisado = 0, del mismo modo, si un producto consideramos que no está redactado, también debemos marcarlo como revisado = 0. Es decir, marcar un producto el parámetro redactado siempre implica resetear revisado, no así marcar revisado, que depende de si ya estaba redactado, como cuando viene de la cola de redacción, o si estamos revisando un producto del que acabamos de generar su descripción desde el controlador y por tanto aún no ha sido guardada, en cuyo caso, al marcar revisado también marcaremos redactado (mismo usuario)
     //07/03/2024 Solo marcaremos redactado cuando se genera la descripción por la API, es decir, al guardarla. De modo que se puede marcar revisado un producto que no fue redactado, porque a veces se utiliza este módulo para modificar descripciones de productos que no han sido generadas con él.
+    //14/07/2025 Hemos preparado el proceso que categorizará los productos a partir de la descripción. Por ahora, cuando se marque un producto como redactado, se insertará el mismo en la tabla lafrips_redactor_clasificador_categorias y se colocará en cola, o en caso de ya existir se pondrá en cola. Llamaremos a una función encolarProductoClasificacion() en ClasificadorCategoriaManager.php
     public static function updateTablaRedactorRedactado($redactado, $id_product, $error_message = "") {
 
         if (!$id_employee = Context::getContext()->employee->id) {
@@ -103,6 +160,16 @@ class RedactorTools
             id_employee_redactado = $id_employee, 
             date_redactado = NOW(),            
             error = 0, ";
+
+            //14/07/2025 encolamos el producto para categorizar
+            $resultado = ClasificadorCategoriaManager::encolarProductoClasificacion($id_product, $id_employee);
+
+            //si no se encoló metemos un mensaje pero continuamos
+            if (!$resultado['success']) {
+                // Registrar error 
+                $sql_redactado .= " error_message = CONCAT(error_message, ' | ".$resultado['message']." - ', DATE_FORMAT(NOW(),'%d-%m-%Y %H:%i:%s')), ";
+            }
+
         } else {
             if ($error_message) {
                 $update_error_message = "  error = 1,
@@ -179,6 +246,7 @@ class RedactorTools
         }
 
         return 'Error haciendo UPDATE de info_para_api';
-    }
+    }   
+
     
 }

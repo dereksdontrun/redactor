@@ -25,10 +25,14 @@
 */
 
 require_once(dirname(__FILE__).'/RedactorTools.php');
+//07/07/2025 Añadimos Promptmanager del módulo openaiprompts para poder acceder a los prompts
+require_once _PS_MODULE_DIR_.'openaiprompts/classes/PromptManager.php';
+
+
 //30/12/2024 
 
 //todas las funciones para trabajar con peticiones a la API de OpenAI (ChatGPT)
-
+//30/06/2025 USAMOS CLASE OpenAIClasificador.php. Vamos a añadir el proceso de categorización de los productos. Los productos se crearán sin categorías ni tipo de producto, salvo lo necesario para no obtener error, y se añadirán a lista y se sacará su descripción con ayuda de la foto, con idiomas, el SEO, etc. Después, ya con la posibilidad de utilizar la descripción, se pasa a las categorías. Primero obtenemos la lista de categorías principales de producto y la lista de tipos de producto. Con esas listas y mediante el análisis del nombre y descripción del producto en prestashop (opcionalmente podríamos añadir la imagen) la IA asignará una categoría principal y un tipo de producto, así como una categoría de precio en función del precio del producto. Después, en función de la categoría principal se obtendrán el grupo de subcategorías de dicha categoría principal y el agente deberá asignarle las que encuentre más adecuadas de dicho subgrupo. Después se obtienen otras categorías principales de Regalar es fácil y el agente asignará una adecuada al producto. Finalmente se obtendrán las subcategorías de dicha categoría de regalar es fácil y el agente de nuevo asignará las que se adecúen al producto. Como a veces llegarán pedidos con alguna categoría asignada (Cerdá), lo que hacemos es dejarlas y si la IA saca más mejor.
 class OpenAIRedactor
 {   
     //función que recibe los parámetros para enviar a la API de OpenAI y llama a la función que ejecuta la petición con el json preparado.
@@ -40,17 +44,18 @@ class OpenAIRedactor
         $api_title = $parametros["title"];
         $api_description = $parametros["description"]; 
         //23/05/2025 buscaremos la categoría principal del producto y su url
-        $api_categoria = OpenAIRedactor::getCategoria($id_product);     
-        if (!$api_categoria || $api_categoria == '') {
-            $error_message = 'Error, no obtenido categoría principal de producto ni url de categoría.';
+        //15/07/2025 Esta parte se hace al clasificar el producto y obtener la categoría principal
+        // $api_categoria = OpenAIRedactor::getCategoria($id_product);     
+        // if (!$api_categoria || $api_categoria == '') {
+        //     $error_message = 'Error, no obtenido categoría principal de producto ni url de categoría.';
 
-            RedactorTools::updateTablaRedactorRedactado(0, $id_product, pSQL($error_message));        
+        //     RedactorTools::updateTablaRedactorRedactado(0, $id_product, pSQL($error_message));        
             
-            return array(
-                "result" => 0,
-                "message" => pSQL($error_message)
-            );
-        }           
+        //     return array(
+        //         "result" => 0,
+        //         "message" => pSQL($error_message)
+        //     );
+        // }           
 
         //hemos guardado con la configuración del módulo el system role context en una variable llamada REDACTOR_OPENAI_SYSTEM_ROLE_CONTEXT
         // $system_role_context = "Eres un redactor experto en SEO especializado en productos de merchandising. Tu tarea es escribir descripciones persuasivas y atractivas para regalos coleccionables y productos geek, evitando términos que puedan tener connotaciones negativas en España, como 'fanático' o 'friki'. También describirás productos como camisetas, zapatillas, bolsos y otros complementos, a menudo relacionados con elementos populares como superheroes, dibujos animados, personajes de televisión y cine, etc. Prioriza destacar detalles clave del producto, como materiales, uso, características especiales y lo que lo hace único. Siempre optimiza los textos para buscadores, empleando palabras clave relevantes y generando títulos llamativos y efectivos para SEO. Puedes usar imágenes del producto y cualquier dato adicional proporcionado para crear contenido perfectamente adaptado a la marca y al público objetivo. Sé profesional, creativo y enfócate en captar la atención del lector. Por favor no metas en el texto emojis para evitar errores. Ofrecerás la respuesta con formato html válido para insertar en una base de datos, sin usar saltos de línea (n). Las etiquetas html permitidas son strong, h1, h2, br, p, ul, li, i. Aplicarás la etiqueta de negrita a las palabras clave, las cuales no incluirás por separado en tu descripción. Separarás en los párrafos necesarios para facilitar la lectura. Muy importante, lo primero que harás será analizar las imágenes recibidas y generar una descripción muy detallada del producto que muestran, mencionando formas, colores y otros rasgos relevantes. A dicha descripción puedes añadirle los datos adicionales que recibirás del rol de usuario y que pueden consistir en marcas, tamaños, fabricantes, materiales o cualquier otra información interesante, pero lo más importante es describir las imágenes recibidas como si el cliente no pudiera ver. Otro punto a destacar es que deberás orientar la descripción del producto al cliente potencial. Por ejemplo, si el producto a describir es un producto orientado a los niños, como juguetes o ropa de niño o bebé, la descripción y el SEO ira orientado a convencer a las madres de los niños. Si el producto es una figura de colección la descripción deberá ir dirigida a un cliente coleccionista. No confundas juguetes con figuras de colección. Si el producto tiene matices de índole erótica o sexual nunca dirijas la descripción a un cliente potencial infantil ya que se trata de un producto para adultos o coleccionistas. Puedes hablar de como el producto mejorará la vida del cliente. **Importante: La descripción deberá tener entre 300 y 500 palabras**. El título o nombre de producto tendrá una longitud de máximo alrededor de 90 caracteres y será una optimización SEO de los datos disponibles que describa con claridad el tipo de producto, personaje, serie, material etc para poder identificarlo facilmente. Una vez generada la descripción y con la información de que dispones generarás un metatítulo y una metadescripción adecuadas al producto, sin excesos en su longitud. Por último, recogerás el enlace y el nombre de categoría administrado en el segundo parámetro 'text' recibido y generarás otra descripción que incite al cliente a visitar toda la categoría  con un enlace incluído. Dicho enlace se abrirá en una nueva pestaña del navegador, no en la actual. Importante: una vez creada la descripción y el resto de campos, prepararás los mismos textos con el mismo formato, manteniendo párrafos, estructura y html, traducido al inglés, al portugués y al francés. La respuesta debe estar en formato JSON válido, sin encerrarlo en bloques de código ni añadir backticks, y contener 4 objetos, uno por cada idioma: Cada idioma debe incluir un objeto con 'language' ( 'es', 'en', 'fr' y 'pt'. Para cada traducción), 'title' (el nombre del producto), 'description_short' (el texto descriptivo en HTML), 'description' (la descripción para la categoría del producto), 'meta_title' (el metatítulo) y 'meta_description' (la metadescripción). No repitas el título dentro de la descripción. Usa etiquetas HTML solo en la descripción del producto y en la descripción para la categoría y no utilices markdown, no insertes asteriscos (*), almohadillas, especialmente en el nombre (#). No envuelvas la salida en bloques de código ni uses comillas escapadas.";
@@ -58,10 +63,17 @@ class OpenAIRedactor
         // 30/05/2025 otra versión
         // $system_role_context = "Eres un redactor experto en SEO especializado en productos de merchandising y coleccionismo. Tu tarea es crear descripciones persuasivas, detalladas y atractivas para productos como figuras de colección, camisetas, zapatillas, bolsos, accesorios, juguetes, ropa para niños o bebés, y otros artículos geek o de cultura pop. Estas descripciones obligatoriamente tendrán un mínimo de 2000-2400 caracteres. Siempre analiza primero las imágenes recibidas y genera una descripción detallada, explicando formas, colores, materiales, texturas, tamaño y cualquier detalle visual relevante, como si el cliente no pudiera verlas. La descripción de las imágenes es la parte más importante de tus funciones. A esa descripción le añadirás los datos adicionales proporcionados (nombre del producto, marca, tamaño, fabricante, materiales, etc).  La descripción debe tener un mínimo obligatorio de 2000-2400 caracteres. Es fundamental que cumplas este requisito. Si no puedes generar 2000-2400 caracteres, genera el máximo contenido posible, pero intenta siempre llegar a 2000 caracteres como mínimo. La descripción estará escrita en HTML válido para insertar en una base de datos, y debe estar optimizada para SEO. Usa palabras clave relevantes y negrita (<strong>) en ellas, pero no incluyas una lista de palabras clave separada. Evita términos con connotaciones negativas en España, como 'fanático' o 'friki'. Si el producto es para niños (ropa, juguetes, accesorios...), orienta la descripción a las madres o padres. Si es una figura coleccionable, orienta la descripción al coleccionista. Si es un producto para adultos, como artículos eróticos, indícalo claramente y no lo orientes a un público infantil. Además de la descripción principal, crea un título SEO de máximo 90 caracteres, que incluya el tipo de producto, personaje, serie, material, etc. No incluyas de nuevo el título en la descripción.; un metatítulo de máximo 60 caracteres, descriptivo y claro; una metadescripción de máximo 160 caracteres, atractiva y clara; y una descripción para la categoría basada en el enlace y la categoría recibida, que invite al cliente a explorar más productos de esa categoría e incluya un enlace <a href='url' target='_blank'> que se abra en una nueva pestaña. Devuelve todo el contenido en JSON válido, con los idiomas: es (español), en (inglés), pt (portugués) y fr (francés). Cada idioma tendrá un objeto con: language, title, description_short (en HTML, con etiquetas <strong>, <h1>, <h2>, <p>, <br>, <ul>, <li>, <i> según sea necesario), description (la descripción de la categoría, también en HTML), meta_title y meta_description. No envuelvas la salida en bloques de código ni uses comillas escapadas. No incluyas asteriscos, almohadillas ni markdown. Muy importante: La descripción del producto debe ser visual, detallada y atractiva, adaptada al cliente objetivo, destacando cómo el producto mejora su vida. Antes de terminar, comprueba de nuevo la longitud del texto. La descripción principal debe tener al menos 2000 caracteres: es obligatorio. Si no puedes alcanzar esa longitud, explica más detalles, profundiza en las características, ejemplos de uso, ventajas, o cualquier información que ayude a ampliar el contenido. Recuerda: la descripción debe tener al menos 2000 caracteres.";
 
-        $system_role_context = Configuration::get('REDACTOR_OPENAI_SYSTEM_ROLE_CONTEXT');
+        // $system_role_context = Configuration::get('REDACTOR_OPENAI_SYSTEM_ROLE_CONTEXT');
+        //07/07/2025 accedemos al prompt para descripciones almacenado en módulo openaiprompts
+        $prompt_data = PromptManager::obtenerPrompt('productos', 'descripcion');
+
+        $system_role_context = $prompt_data['prompt'];
+        $model = $prompt_data['modelo'];
+        $temperature = (float)$prompt_data['temperature'];
+        $max_tokens = (int)$prompt_data['max_tokens'];
 
         if (!$system_role_context || $system_role_context == '') {
-            $error_message = 'Error, no obtenido contexto para rol de sistema para OpenAI de tabla de configuración';
+            $error_message = 'Error, no obtenido contexto para rol de sistema para OpenAI';
 
             RedactorTools::updateTablaRedactorRedactado(0, $id_product, pSQL($error_message));        
             
@@ -83,10 +95,11 @@ class OpenAIRedactor
         );
 
         //22/05/2025 preparamos un segundo "text" donde metemos el nombre y categoría principal del producto  
-        $array_user[] = array(
-            "type" => "text",
-            "text" => $api_categoria
-        );
+        //15/07/2025 Esta parte se hace al clasificar el producto y obtener la categoría principal
+        // $array_user[] = array(
+        //     "type" => "text",
+        //     "text" => $api_categoria
+        // );
 
         //para guardar la url en el log lo que hacemos es almacenarla en un duplicado de $array_user, $array_user_duplicado, utilizaremos el original para la api, y el otro para el insert a base de datos. En el duplicado guardaremos la url, en el original irá base64 (o la url si se configurara así)
         $array_user_duplicado = array();
@@ -96,10 +109,10 @@ class OpenAIRedactor
             "text" => $user_prompt
         );
 
-        $array_user_duplicado[] = array(
-            "type" => "text",
-            "text" => $api_categoria
-        );
+        // $array_user_duplicado[] = array(
+        //     "type" => "text",
+        //     "text" => $api_categoria
+        // );
       
         //obtenemos hasta 6 imágenes del producto
         //05/01/2025 Por algún motivo las url no las puede leer gpt directamente de nuestro servidor (son públicas) mientras averiguamos si es un problema de permisos o CDN, etc ya que en test si que puede, lo que hacemos es utilizar las url para descargarlas con file_get_content y luego convertirlas a base64, lo cual si que lee. Se envía como si fuera la url
@@ -155,12 +168,10 @@ class OpenAIRedactor
                 );
             } else {
                 foreach ($images AS $image) {
-                    $id_image = $image['id_image'];
-
-                    $link = new Link();								
+                    $id_image = $image['id_image'];                    							
 						
                     $product = new Product((int)$id_product, false, 1, 1);
-                    $product_link = $link->getProductLink($product, $product->link_rewrite, null, null, 1, 1);	                    
+                                        
                     //imagen		
                     $image_link = new Link;//because getImageLInk is not static function
                     //el link obtenido no lleva http así que lo añadimos
@@ -202,9 +213,10 @@ class OpenAIRedactor
         }     
 
         //obtenemos los valores de modelo, max_tokens y temperature de la tabla de configuración, con valores por defecto si no hubiera
-        $model = Configuration::get('REDACTOR_OPENAI_MODEL', 'gpt-4o');
-        $max_tokens = (int)Configuration::get('REDACTOR_OPENAI_MAX_TOKENS', 2000);
-        $temperature = (float)Configuration::get('REDACTOR_OPENAI_TEMPERATURE', 0.7);
+        //YA NO, ahora se usa modulo openaiprompts
+        // $model = Configuration::get('REDACTOR_OPENAI_MODEL', 'gpt-4o');
+        // $max_tokens = (int)Configuration::get('REDACTOR_OPENAI_MAX_TOKENS', 2000);
+        // $temperature = (float)Configuration::get('REDACTOR_OPENAI_TEMPERATURE', 0.7);
 
         $array = array(
             "model" => $model,
@@ -286,6 +298,8 @@ class OpenAIRedactor
         //     END 
         // WHERE id_product = $id_product";
 
+        $api_description = pSQL($api_description);
+
         $sql_redactando = "UPDATE lafrips_redactor_descripcion
         SET 
         api = 'openai',                
@@ -297,7 +311,9 @@ class OpenAIRedactor
         info_para_api = '$api_description'
         WHERE id_product = $id_product";
 
-        Db::getInstance()->executeS($sql_redactando);               
+        // echo $sql_redactando;
+
+        Db::getInstance()->execute($sql_redactando);               
         
         $description = OpenAIRedactor::apiCallDescription($array_json, $id_product);
         //si hubo error generando descripción devolvemos el error a donde hallamos llamado a esta función
@@ -514,14 +530,19 @@ class OpenAIRedactor
             //22/05/2025 Al pedir traducción y otros parámetros, recibimos un json anidado en content, por tanto hay que hacer un segundo jsondecode
             $content_json = $response_decode['choices'][0]['message']['content'];
 
-            // file_put_contents(__DIR__ . "/content_json.txt", print_r($content_json, true), FILE_APPEND);
+            file_put_contents(__DIR__ . "/../log/content_json.txt", print_r($content_json, true), FILE_APPEND);
     
             if ($content_json && !is_null($content_json) && !empty($content_json)) {
-                // Redactame::updateTablaRedactor(1, $id_product); Mientras hagamos negritas, aún no podemos considerarlo redactado
+                // Redactame::updateTablaRedactor(1, $id_product); Mientras hagamos negritas, aún no podemos considerarlo redactado                
 
-                $content = json_decode($content_json, true);
+                // Limpiar bloques tipo ```json ... ```
+                if (preg_match('/```(?:json)?\s*(.*?)\s*```/is', $content_json, $matches)) {
+                    $content_json = $matches[1];
+                }
+
+                $content = json_decode($content_json, true);                   
                 
-                if (is_array($content)) {
+                if (json_last_error() === JSON_ERROR_NONE && is_array($content)) {
                     return array(
                         "result" => 1,
                         "message" => $content                    
@@ -529,7 +550,7 @@ class OpenAIRedactor
                 } else {
                     $error_message = "Error al decodificar el contenido interno JSON.";
 
-                    RedactorTools::updateTablaRedactorRedactado(0, $id_product, $error_message.' : '.$content_json);
+                    RedactorTools::updateTablaRedactorRedactado(0, $id_product, $error_message.' : '.pSQL($content_json));
                     
                     return array(
                         "result" => 0,
@@ -578,6 +599,7 @@ class OpenAIRedactor
     }
 
     //función que comprueba si la primera línea del texto recibido es un titular y si es así lo separa del resto devolviendo un array con título y descripción, o null
+    //YA NO SE USA
     public static function sacaTitulo($description) {
         // Expresión regular para buscar el <h1> al principio del texto, no busca más allá de la segunda línea
         $pattern = '/^\s*<h1>(.*?)<\/h1>\s*(?:\r?\n){0,2}/i';

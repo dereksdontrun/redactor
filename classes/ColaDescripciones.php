@@ -97,6 +97,7 @@ class ColaDescripciones
                 // }                
 
                 //22/05/2025 $resultado debe contener title, description_short, description, meta_title, meta_description
+                //15/07/2025 Ahora hacemos la descripción larga en clasificación al obtener la categoría principal, por tanto $resultado debe contener title, description_short, meta_title, meta_description y atributo_alt (para img)
                 if ($resultado_api["result"] == 1) {
                     //tenemos una descripción, supuestamente correcta, o al menos la API no dió error. La tabla ya ha sido actualizada 
                     foreach ($resultado_api['message'] AS $index => $textos) {
@@ -116,18 +117,18 @@ class ColaDescripciones
                         }
 
                         //guardamos el resultado actualizando el producto.                  
-                        if (($retorno_actualiza_producto = RedactorTools::actualizaProducto($this->info_api["id_product"], $id_lang, $textos['description_short'], $textos['title'],  $textos['description'], $textos['meta_title'], $textos['meta_description'])) === true) {
+                        if (($retorno_actualiza_producto = RedactorTools::actualizaProducto($this->info_api["id_product"], $id_lang, $textos['description_short'], $textos['title'],  $textos['atributo_alt'], $textos['meta_title'], $textos['meta_description'])) === true) {
                             //marcamos redactado
                             RedactorTools::updateTablaRedactorRedactado(1, $this->info_api["id_product"]);
 
-                            file_put_contents($this->log_file, date('Y-m-d H:i:s').' - Descripción generada y guardada para id_product '.$this->info_api["id_product"].' con API '.ucfirst($this->api_seleccionada).PHP_EOL, FILE_APPEND);
+                            file_put_contents($this->log_file, date('Y-m-d H:i:s').' - Descripción generada y guardada para id_product '.$this->info_api["id_product"].', id_lang = '.$id_lang.' con API '.ucfirst($this->api_seleccionada).PHP_EOL, FILE_APPEND);
                         } else { 
                             //marcamos error y quitamos redactado, e insertamos el mensaje de error de excepción devuelto
                             $retorno_actualiza_producto = pSQL($retorno_actualiza_producto);
 
                             RedactorTools::updateTablaRedactorRedactado(0, $this->info_api["id_product"], $retorno_actualiza_producto);              
 
-                            file_put_contents($this->log_file, date('Y-m-d H:i:s').' - Error: Descripción generada NO guardada para id_product '.$this->info_api["id_product"].' con API '.ucfirst($this->api_seleccionada).' - '.$retorno_actualiza_producto.PHP_EOL, FILE_APPEND);
+                            file_put_contents($this->log_file, date('Y-m-d H:i:s').' - Error: Descripción generada NO guardada para id_product '.$this->info_api["id_product"].', id_lang = '.$id_lang.' con API '.ucfirst($this->api_seleccionada).' - '.$retorno_actualiza_producto.PHP_EOL, FILE_APPEND);
                         }
                     }                    
 
