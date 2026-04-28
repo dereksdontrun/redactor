@@ -19,6 +19,8 @@ require_once(dirname(__FILE__).'/RedactorTools.php');
 
 //02/01/2025 Adaptamos todo al nuevo redactor OpenAI
 
+//10/11/2025 Como activar en vivo un producto tarda unos segundos, lo que hace el botón de activar es añadir a cola con "pendiente_activar", de modo que el proceso de cola de descripciones primero activará los productos que se encuentren en ese estado
+
 $a = new ColaDescripciones();
 
 class ColaDescripciones
@@ -55,6 +57,9 @@ class ColaDescripciones
 
         //llamamos a función para que analice productos atascados en "procesando"
         $this->checkProcesando();
+
+        //llamamos a función para que revisa y procesa productos en "pendiente_activar"
+        $this->checkPendienteActivar();
  
         $this->start();
     }
@@ -196,7 +201,9 @@ class ColaDescripciones
                                
             } 
             
-            if (!$info_producto['nombre'] || !$info_producto['descripcion']) {
+            //02/09/2025 voy a permitir para probar que no haya descripción
+            // if (!$info_producto['nombre'] || !$info_producto['descripcion']) {
+            if (!$info_producto['nombre']){
                 $sql_error = "UPDATE lafrips_redactor_descripcion
                 SET
                 error = 1, 
@@ -205,7 +212,8 @@ class ColaDescripciones
 
                 Db::getInstance()->executeS($sql_error);  
 
-                file_put_contents($this->log_file, date('Y-m-d H:i:s').' - Error obteniendo Nombre y Descripción para id_product '.$id_product.PHP_EOL, FILE_APPEND);
+                // file_put_contents($this->log_file, date('Y-m-d H:i:s').' - Error obteniendo Nombre y Descripción para id_product '.$id_product.PHP_EOL, FILE_APPEND);
+                file_put_contents($this->log_file, date('Y-m-d H:i:s').' - Error obteniendo Nombre para id_product '.$id_product.PHP_EOL, FILE_APPEND);
 
                 //devolvemos 'error', simplemente porque no es ni true ni false, de modo que continuará con el do - while
                 return 'error';
@@ -217,7 +225,8 @@ class ColaDescripciones
             $this->info_api = array(
                 "id_product" => $id_product,
                 "title" => $info_producto['nombre'],
-                "description" => $info_producto['descripcion']
+                // "description" => $info_producto['descripcion']
+                "description" => $info_producto['descripcion'] ? $info_producto['descripcion'] : "No te pierdas este genial producto con licencia oficial.<Br>Un regalo elegante y original, pero también muy práctico"
             );                              
 
             return true;
@@ -334,6 +343,95 @@ class ColaDescripciones
         return;
     }
 
+    //función que busca productos con pendiente_activar =1 y los activa uno a uno
+    public function checkPendienteActivar() {
+        //sacamos productos con pendiente_activar = 1
+        $sql_productos_activar = 'SELECT id_redactor_descripcion, id_product
+        FROM lafrips_redactor_descripcion 
+        WHERE pendiente_activar = 1
+        AND error = 0';
+        $productos_activar = Db::getInstance()->executeS($sql_productos_activar);
+        
+        $contador = 0;
+
+        if (count($productos_activar) > 0) { 
+            foreach ($productos_activar AS $producto) {
+                // Comprobamos si se alcanzó el límite de tiempo
+                if (
+                    ((time() - $this->inicio) >= $this->my_max_execution_time) ||
+                    ((time() - $this->inicio) >= $this->max_execution_time_x_minutos)
+                ) {                    
+                    file_put_contents(
+                        $this->log_file,
+                        date('Y-m-d H:i:s').' - Tiempo de ejecución alcanzando límite - Proceso interrumpido'.PHP_EOL,
+                        FILE_APPEND
+                    );
+                    break; // salimos del foreach
+                }
+
+                $contador++; 
+                $id_redactor_descripcion = $producto['id_redactor_descripcion']; 
+                $id_product = $producto['id_product']; 
+                
+                $product = new Product($id_product);
+
+                if ($contador == 1) {
+                    file_put_contents($this->log_file, date('Y-m-d H:i:s').' --------------------------------------------------'.PHP_EOL, FILE_APPEND);
+                    file_put_contents($this->log_file, date('Y-m-d H:i:s').' - Activando productos "pendiente_activar"'.PHP_EOL, FILE_APPEND);
+                }
+
+                if (!Validate::isLoadedObject($product)) {
+                    Db::getInstance()->Execute("UPDATE lafrips_redactor_descripcion
+                    SET
+                    pendiente_activar = 0, 
+                    error = 1,
+                    error_message = CONCAT(error_message, ' | Producto no existe en Prestashop - ', DATE_FORMAT(NOW(),'%d-%m-%Y %H:%i:%s')),         
+                    date_upd = NOW()
+                    WHERE id_redactor_descripcion = ".$id_redactor_descripcion );                     
+
+                    file_put_contents($this->log_file, date('Y-m-d H:i:s').' - ERROR activando producto - NO EXISTE - id_product '.$id_product.PHP_EOL, FILE_APPEND);
+                    
+                    continue;        
+                }
+                
+                $product->active = true;
+                
+                if ($product->update()) {                            
+                    
+                    Db::getInstance()->Execute("UPDATE lafrips_redactor_descripcion
+                    SET
+                    pendiente_activar = 0, 
+                    date_activado = NOW(),       
+                    date_upd = NOW()
+                    WHERE id_redactor_descripcion = ".$id_redactor_descripcion );                      
+
+                    file_put_contents($this->log_file, date('Y-m-d H:i:s').' - Activado producto id_product '.$id_product.PHP_EOL, FILE_APPEND);
+                    
+                    continue;
+                } else {
+                    
+                    Db::getInstance()->Execute("UPDATE lafrips_redactor_descripcion
+                    SET
+                    pendiente_activar = 0, 
+                    error = 1,
+                    error_message = CONCAT(error_message, ' | Error activando producto - ', DATE_FORMAT(NOW(),'%d-%m-%Y %H:%i:%s')),         
+                    date_upd = NOW()
+                    WHERE id_redactor_descripcion = ".$id_redactor_descripcion );                     
+
+                    file_put_contents($this->log_file, date('Y-m-d H:i:s').' - ERROR activando producto id_product '.$id_product.PHP_EOL, FILE_APPEND);
+                    
+                    continue;
+                    
+                }                     
+            }
+        }        
+
+        if ($contador > 0) {
+            file_put_contents($this->log_file, date('Y-m-d H:i:s').' - Fin proceso productos "pendiente_activar"'.PHP_EOL, FILE_APPEND);
+            file_put_contents($this->log_file, date('Y-m-d H:i:s').' --------------------------------------------------'.PHP_EOL, FILE_APPEND);            
+        }
+
+        return;
+    }
 }
 
-?>

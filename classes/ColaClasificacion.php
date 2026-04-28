@@ -12,7 +12,7 @@ class ColaClasificacion
     private $inicio;
     private $max_execution_time;
     private $manager;
-    private $log_file = _PS_ROOT_DIR_.'/modules/redactor/log/clasificador.txt';
+    private $log_file = _PS_ROOT_DIR_.'/modules/redactor/log/';
 
     private $logger;
 
@@ -26,15 +26,12 @@ class ColaClasificacion
 
         $this->manager = new ClasificadorCategoriaManager();
 
-        $this->logger = new LoggerFrik($this->log_file);
+        $this->logger = new LoggerFrik($this->log_file.'clasificador_' . date('Ymd') . '.log');  
 
         //para llevarnos $logger a ClasificadorCategoriaManager:
         $this->manager->setLogger($this->logger);
         //para llevarnos $logger a OpenAIClasificador:
-        OpenAIClasificador::setLogger($this->logger);
-
-        $this->logger->log("-----     -----     -----     -----     -----", 'INFO');
-        $this->logger->log("Iniciado proceso de clasificación de productos", 'INFO');
+        OpenAIClasificador::setLogger($this->logger);        
 
         // Reset de productos estancados más de x minutos
         $this->manager->resetProcesandoAntiguos(); 
@@ -44,11 +41,22 @@ class ColaClasificacion
 
     private function start()
     {
+        $contador = 0;
+
         do {
+            $contador++;
+
             $producto = $this->manager->obtenerProductoEnCola();
 
-            if ($producto === false) {
+            if ($producto && $contador == 1) {
+                $this->logger->log("-----     -----     -----     -----     -----", 'INFO');
+                $this->logger->log("Iniciado proceso de clasificación de productos", 'INFO');
+            }
+
+            if ($producto === false && $contador > 1) {
                 $this->logger->log("No hay productos pendientes en cola", 'INFO');
+                break;
+            } elseif ($producto === false && $contador == 1) {
                 break;
             }
 
@@ -73,8 +81,10 @@ class ColaClasificacion
 
         } while ((time() - $this->inicio) < $this->max_execution_time);
 
-        $duracion = time() - $this->inicio;
-        $this->logger->log("Proceso finalizado tras $duracion segundos", 'INFO');
+        if ($contador > 1) {
+            $duracion = time() - $this->inicio;
+            $this->logger->log("Proceso finalizado tras $duracion segundos", 'INFO');
+        }        
     }    
 }
 

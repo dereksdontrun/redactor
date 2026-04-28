@@ -369,3 +369,91 @@ input[type="radio"]:checked + label {
     z-index: 9999; 
     display: none; 
   } */
+
+  /* 30/07/2025 panel de clasificación */
+ /* General */
+.fila {
+    margin-bottom: 10px;
+}
+
+.fila-superior {
+    display: flex;
+    gap: 15px;
+    background: #f7f7f7;
+    padding: 8px;
+    border-radius: 4px;
+}
+.fila-superior > div {
+    flex: 1;
+    min-width: 150px;
+}
+
+.fila-doble {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+}
+
+.fila-tres {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+}
+
+.fila-cuatro {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+}
+
+/* Bloques con colores */
+.categoria-principal {
+    background: #f3f8ff;
+    border: 1px solid #bcd0f5;
+    padding: 6px 8px;
+    border-radius: 4px;
+}
+
+.categoria-precio {
+    background: #fff8e1;
+    border: 1px solid #ffecb3;
+    padding: 6px 8px;
+    border-radius: 4px;
+}
+
+.categoria-bloque {
+    background: #f9f9f9;
+    border: 1px solid #ddd;
+    padding: 8px;
+    border-radius: 4px;
+}
+.subprincipal { background: #e3f2fd; border-color: #bbdefb; }
+.regalar { background: #e8f5e9; border-color: #c8e6c9; }
+.subregalar { background: #fce4ec; border-color: #f8bbd0; }
+
+.otras-categorias {
+    background: #e0f7fa;        /* azul verdoso suave */
+    border: 1px solid #b2ebf2;
+    padding: 8px;
+    border-radius: 4px;
+}
+
+/* Filas opcionales */
+.asignadas-no-clasificadas {
+    background: #ede7f6;
+    border: 1px solid #d1c4e9;
+    padding: 8px;
+    border-radius: 4px;
+}
+.clasificadas-no-asignadas {
+    background: #fff3e0;
+    border: 1px solid #ffe0b2;
+    padding: 8px;
+    border-radius: 4px;
+}
+
+/* IDs en gris pequeño */
+.cat-id {
+    color: #888;
+    font-size: 0.85em;
+}

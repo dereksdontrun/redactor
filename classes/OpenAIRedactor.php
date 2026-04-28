@@ -530,7 +530,9 @@ class OpenAIRedactor
             //22/05/2025 Al pedir traducción y otros parámetros, recibimos un json anidado en content, por tanto hay que hacer un segundo jsondecode
             $content_json = $response_decode['choices'][0]['message']['content'];
 
-            file_put_contents(__DIR__ . "/../log/content_json.txt", print_r($content_json, true), FILE_APPEND);
+            // file_put_contents(__DIR__ . "/../log/content_json.txt", print_r($content_json, true), FILE_APPEND);
+            file_put_contents(__DIR__ . "/../log/response_decode.txt", date("Y-m-d H:i:s")." Producto $id_product", FILE_APPEND);
+            file_put_contents(__DIR__ . "/../log/response_decode.txt", print_r($response_decode, true), FILE_APPEND);
     
             if ($content_json && !is_null($content_json) && !empty($content_json)) {
                 // Redactame::updateTablaRedactor(1, $id_product); Mientras hagamos negritas, aún no podemos considerarlo redactado                
